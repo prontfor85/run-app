@@ -126,21 +126,33 @@
 const MAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
 
 //==================== 상태/저장 ====================
-const KEY='runapp_proto_v1';
+const KEY='runapp_proto_v2';
 const DEFAULT={
-  unit:'km', goal:20, activeTab:'home', defaultShoe:1, user:null,
+  unit:'km', lang:'ko', goal:20, monthGoal:80, weekRunGoal:3, activeTab:'home', defaultShoe:1, user:null,
   theme:'light', notif:{goal:true,shoe:true,push:false},
   privacy:{hideEnds:true,visibility:'private'}, profile:{nickname:'',height:'',weight:''},
-  runGoal:{type:'none',value:0}, autopause:false, statPeriod:'week',
+  runGoal:{type:'none',value:0}, autopause:false, voiceCoach:true, plan:null, plansDone:[], statPeriod:'week',
   shoes:[
     {id:1,name:'나이키 페가수스 40',km:412,count:78,max:600},
     {id:2,name:'아식스 카야노 31',km:735,count:121,max:800},
     {id:3,name:'호카 클리프톤 9',km:120,count:22,max:600},
   ],
   runs:[
-    {id:1,date:'2026-05-28',dist:5.32,dur:1694,hr:152,cal:312,shoeId:1},
-    {id:2,date:'2026-05-26',dist:4.70,dur:1640,hr:148,cal:276,shoeId:1},
-    {id:3,date:'2026-05-23',dist:8.10,dur:2730,hr:159,cal:475,shoeId:2},
+    {id:1,date:'2026-05-30',dist:6.2,dur:1984,hr:150,cal:360,shoeId:1,at:new Date(2026,4,30,7,40).getTime()},
+    {id:2,date:'2026-05-29',dist:4.0,dur:1240,hr:146,cal:232,shoeId:1,at:new Date(2026,4,29,21,10).getTime()},
+    {id:3,date:'2026-05-27',dist:8.5,dur:2848,hr:158,cal:493,shoeId:2,at:new Date(2026,4,27,18,30).getTime()},
+    {id:4,date:'2026-05-25',dist:5.0,dur:1500,hr:152,cal:290,shoeId:1,at:new Date(2026,4,25,8,15).getTime()},
+    {id:5,date:'2026-05-22',dist:10.0,dur:3400,hr:160,cal:580,shoeId:2},
+    {id:6,date:'2026-05-20',dist:5.5,dur:1733,hr:148,cal:319,shoeId:1},
+    {id:7,date:'2026-05-18',dist:7.0,dur:2310,hr:155,cal:406,shoeId:3},
+    {id:8,date:'2026-05-15',dist:6.0,dur:1950,hr:150,cal:348,shoeId:1},
+    {id:9,date:'2026-05-12',dist:4.5,dur:1373,hr:144,cal:261,shoeId:2},
+    {id:10,date:'2026-05-08',dist:12.0,dur:4140,hr:162,cal:696,shoeId:2},
+    {id:11,date:'2026-05-05',dist:5.0,dur:1550,hr:147,cal:290,shoeId:1},
+    {id:12,date:'2026-04-30',dist:6.5,dur:2145,hr:153,cal:377,shoeId:3},
+    {id:13,date:'2026-04-28',dist:4.0,dur:1200,hr:143,cal:232,shoeId:1},
+    {id:14,date:'2026-04-23',dist:8.0,dur:2704,hr:157,cal:464,shoeId:2},
+    {id:15,date:'2026-04-21',dist:5.0,dur:1575,hr:149,cal:290,shoeId:1},
   ],
 };
 let S;
@@ -154,6 +166,101 @@ function load(){ let saved=null; try{ saved=JSON.parse(localStorage.getItem(KEY)
 }
 function save(){ try{ localStorage.setItem(KEY,JSON.stringify(S)); }catch(e){} }
 load();
+if(!S.lang) S.lang='ko';
+
+//==================== 다국어(i18n) — 한국어 기준, 영어 자동 치환 ====================
+const _LV={'좋음':'Good','보통':'Moderate','나쁨':'Unhealthy','매우나쁨':'Very unhealthy'};
+const _TOD={'새벽':'Early-morning','오전':'Morning','오후':'Afternoon','저녁':'Evening'};
+const EN={
+ '홈':'Home','활동':'Activity','기록':'Record','신발':'Shoes','마이':'My',
+ '⚠ 위치 권한 없음 — 기본 지도':'⚠ No location permission — default map','⚠ 위치 미지원 — 기본 지도':'⚠ Location unsupported — default map','● 현재 위치':'● Current location',
+ '신발 선택':'Select shoe','설정':'Settings','전체화면':'Fullscreen','시간':'Time','평균 페이스':'Avg pace','거리(km)':'Distance (km)','닫기':'Close','지도':'Map','거리 (km)':'Distance (km)',
+ '데이터가 부족해요':'Not enough data',
+ '이번 주 거리':'This week','이번 달 거리':'This month','목표 설정':'Set goals','주간 목표 거리':'Weekly goal distance','월간 목표 거리':'Monthly goal distance','주 러닝 횟수':'Runs per week','목표는 홈 챌린지에 바로 반영돼요.':'Applied to your home challenges instantly.','저장':'Save','목표를 저장했어요':'Goals saved',
+ '첫 러닝':'First run','5K 완주':'5K done','10K 완주':'10K done','주 3회':'3×/week','누적 50km':'50km total','누적 100km':'100km total','누적 200km':'200km total','월 100km':'100km/month','4주 연속':'4-week streak','야간 러닝':'Night run',
+ '지난주 기록 없음':'No runs last week','기록 없음':'No runs','안녕하세요 👋':'Hello 👋','이번 주':'This week','챌린지':'Challenges','✎ 목표 설정':'✎ Set goals',
+ '통계':'Stats','주간':'Week','월간':'Month','연간':'Year','지난주 대비':'vs last week','페이스 추세':'Pace trend','(낮을수록 빠름)':'(lower is faster)','심박 추세':'Heart rate trend',
+ '개인 기록 (PR)':'Personal records (PR)','최장 거리':'Longest','누적 거리':'Total distance','최고 평균 페이스':'Best avg pace','총 러닝':'Total runs','배지':'Badges','최근 기록':'Recent runs','전체 ›':'All ›','자주 신는 러닝화':'Most-used shoes',
+ '브론즈':'Bronze','실버':'Silver','골드':'Gold','플래티넘':'Platinum','다이아몬드':'Diamond','마스터':'Master','최고 등급 달성 🎉':'Top tier reached 🎉',
+ '훈련 플랜':'Training plans','훈련 플랜 시작하기':'Start a training plan','초보 8주 · 5K · 10K 프로그램':'Beginner 8wk · 5K · 10K','시작하기':'Start','그만두기':'Quit','목표를 골라 시작하세요. 주차별 운동을 따라 하고 완료를 체크하면 진행률이 쌓여요.':'Pick a goal to start. Follow each week’s workouts and check them off to build progress.',
+ '초보 8주':'Beginner 8wk','5K 도전':'5K plan','10K 도전':'10K plan','걷기-달리기 → 30분 연속':'Walk-run → 30 min nonstop','6주 · 주 3회':'6 weeks · 3×/week','8주 · 주 3-4회':'8 weeks · 3-4×/week',
+ '걷기런':'Walk-run','쉬운':'Easy','롱런':'Long','인터벌':'Intervals','템포':'Tempo','연속':'Continuous',
+ '플랜을 시작했어요':'Plan started','플랜을 종료했어요':'Plan ended','플랜을 그만둘까요? (진행 상황이 사라져요)':'Quit the plan? (progress will be lost)','플랜 완주! 🎉':'Plan finished! 🎉','플랜 완주':'Plan finished','완주! 🎉':'completed! 🎉','모든 주차를 마쳤어요. 잘했어요!':'All weeks done. Great work!','다음 단계 시작':'Start next level','최고 단계까지 완주했어요 🏆':'You finished the top level 🏆','플랜 종료':'End plan',
+ '아직 기록이 없어요':'No runs yet','러닝 탭에서 START를 눌러':'Tap START on the Record tab','첫 러닝을 기록해 보세요.':'to log your first run.','러닝 시작하기':'Start a run',
+ '심박수':'Heart rate','칼로리':'Calories','상세 보기 ›':'Details ›',
+ '내 러닝화':'My shoes','+ 추가':'+ Add','등록된 러닝화가 없어요':'No shoes registered','신발을 등록하면 러닝마다':'Add a shoe and each run','거리·횟수가 자동으로 쌓여요.':'logs its distance & count automatically.','신발 등록하기':'Add a shoe',
+ '사용 중인 신발이 없어요.':'No shoes in use.','새로 추가하거나 아래 지난 신발을 되살려 보세요.':'Add one or restore a past shoe below.','지난 신발 · 은퇴':'Past shoes · Retired','수정':'Edit','되살리기':'Restore','삭제':'Delete','삭제된 신발':'Deleted shoe',
+ '● 클라우드 백업 켜짐 (데모)':'● Cloud backup on (demo)','지금 백업하기':'Back up now','로그인 / 회원가입':'Log in / Sign up','기록을 클라우드에 백업하고':'Back up to the cloud and','기기를 바꿔도 이어서 사용':'keep your data across devices',
+ '단위':'Unit','언어':'Language','프로필 편집':'Edit profile','미설정':'Not set','테마':'Theme','라이트':'Light','다크':'Dark','시스템':'System','알림':'Notifications','개인정보':'Privacy','활동 공개범위':'Activity visibility','비공개':'Private','팔로워':'Followers','공개':'Public','위치 권한':'Location access','사용 중에만 ›':'While using ›',
+ '⚠ 이 프로토타입의 모든 데이터(기록·심박·신발)는 이 브라우저 안에만 저장되며 외부로 전송되지 않습니다. 심박수는 시뮬레이션 값입니다.':'⚠ All data (runs, heart rate, shoes) in this prototype is stored only in this browser and never sent anywhere. Heart rate is simulated.','데이터 초기화':'Reset data',
+ '로그인':'Log in','러닝앱 시작하기':'Get started','로그인하면 기록을 클라우드에 백업하고':'Log in to back up your runs and','기기를 바꿔도 이어서 쓸 수 있어요.':'keep them across devices.','이메일':'Email','이메일로 계속':'Continue with email','또는':'or','Apple로 계속':'Continue with Apple','G  Google로 계속':'G  Continue with Google','💬 카카오로 계속':'💬 Continue with Kakao',
+ '데모 화면':'Demo screen','입니다. 실제 인증이 아니며':'. Not real authentication, and','비밀번호를 묻지 않습니다.':'no password is requested.','입력값은 이 기기 안에만 저장되고 외부로 전송되지 않아요. 실제 로그인·보안 인증은 출시 단계에서 붙입니다. (개인 이메일·비밀번호는 입력하지 마세요.)':'Inputs are stored only on this device and never sent anywhere. Real login/security comes at launch. (Do not enter personal email/passwords.)','러너':'Runner',
+ '로그인됐어요 (데모)':'Logged in (demo)','로그아웃됐어요':'Logged out','클라우드에 백업했어요 (데모)':'Backed up to cloud (demo)','프로필을 저장했어요':'Profile saved',
+ '닉네임':'Nickname','키 (cm)':'Height (cm)','몸무게 (kg)':'Weight (kg)','키·몸무게는 칼로리 추정 정확도를 높이는 데만 쓰여요. 이 기기 안에만 저장되고 외부로 전송되지 않습니다.':'Height/weight is used only to improve calorie estimates. Stored on this device only, never sent anywhere.',
+ '출발!':'Go!','목표 달성! 🎉':'Goal reached! 🎉','목표 없음':'No goal','목표 거리 (km)':'Target distance (km)','목표 시간 (분)':'Target time (min)','목표 페이스 (분:초 /km)':'Target pace (min:sec /km)','러닝 설정':'Run settings','목표':'Goal','자동 일시정지':'Auto-pause','(멈추면 자동 정지)':'(pauses when you stop)','음성 코칭':'Voice coaching','(1km마다 음성 안내)':'(audio cue every km)','적용':'Apply','목표 해제':'Goal cleared',
+ '재개':'Resume','종료':'Stop','일시정지':'Pause','정지됨':'Paused','측정 중':'Recording','거리 km':'Distance km','페이스':'Pace','심박':'HR','홈으로':'Home','지도 보기':'Map view','심박 ❤':'HR ❤','탭하여 돌아가기 ›':'Tap to return ›','일시정지됨':'Paused',
+ '랩 (Laps)':'Laps','구간':'Segment','거리':'Distance','‹ 다시 시작':'‹ Resume','러닝 완료':'Run complete','활동 제목':'Activity title','오늘 러닝은 어땠나요? (메모)':'How was your run? (note)','평균 심박':'Avg HR','👟 신은 신발 (이 신발에 거리·횟수 적립)':'👟 Shoe worn (credits distance & count)','심박수는 시뮬레이션 값이며, 기록은 이 브라우저 안에만 저장됩니다.':'Heart rate is simulated; runs are stored only in this browser.','저장하지 않고 삭제':'Discard without saving','공유':'Share','기록 저장':'Save run','기록을 저장했어요 🎉':'Run saved 🎉',
+ '아침 러닝':'Morning run','오후 러닝':'Afternoon run','저녁 러닝':'Evening run',
+ '이 기록을 저장하지 않고 닫을까요?':'Close without saving this run?','이 기록을 저장하지 않고 삭제할까요? (되돌릴 수 없어요)':'Delete this run without saving? (cannot be undone)','기록을 삭제했어요':'Run deleted','기록 삭제':'Delete run','신발 누적 거리는 어떻게 할까요?':'What about the shoe mileage?','기록만 삭제 (신발 거리 유지)':'Delete run only (keep shoe mileage)','신발 거리도 함께 차감':'Also subtract shoe mileage','취소':'Cancel','기록 삭제 · 신발 거리 유지':'Run deleted · shoe mileage kept','기록·신발 거리 삭제':'Run & shoe mileage deleted',
+ '미니멀':'Minimal','경로 강조':'Route focus','세로 스택':'Vertical stack','페이스 · 시간':'Pace · Time',
+ '기록 공유':'Share run','템플릿을 선택하세요 · 배경 투명 PNG':'Choose a template · transparent PNG','선택한 템플릿으로 공유':'Share with selected template','웹에서는 인스타그램에 자동 게시가 안 돼요.':"Auto-posting to Instagram isn't possible on web.",'인스타그램':'Instagram','클립보드':'Clipboard','더보기':'More',
+ '이미지를 저장했어요':'Image saved','러닝 기록':'Run record','직접 공유 미지원 — 이미지를 저장했어요':'Direct share unsupported — image saved','클립보드에 복사됐어요':'Copied to clipboard','이 브라우저는 클립보드 복사 미지원 — 저장을 이용하세요':"This browser can't copy to clipboard — use Save",
+ '기록 상세':'Run details','이동 시간':'Moving time','고도 상승':'Elevation gain','고도':'Elevation','구간 (Splits)':'Splits','페이스 (Pace)':'Pace','경과 시간':'Elapsed','최고 구간':'Fastest split','심박수 (Heart Rate)':'Heart rate','최대 심박':'Max HR','파워 (Power)':'Power','평균 파워':'Avg power','총 일량':'Total work','최대 파워':'Max power','고도 (Elevation)':'Elevation','최고 고도':'Max elevation','👟 신발':'👟 Shoe','기록 방식':'Recording','시뮬레이션 데이터':'Simulated data','심박·파워·고도·구간 데이터는 데모용 시뮬레이션 값입니다. 실제 측정에는 GPS·심박 센서(워치 등)가 필요합니다.':'HR, power, elevation, and split data are simulated for the demo. Real measurement needs GPS and a heart-rate sensor (e.g., a watch).','이 기록 삭제':'Delete this run','시뮬레이션 경로':'simulated route',
+ '선택 ›':'Select ›','검색 결과가 없어요':'No results','신발 추가':'Add shoe','(선택 · 비우면 제품명으로 표시)':'(optional · product name if blank)','예: 출퇴근화, 대회용':'e.g., commute, race','이미 뛴 거리':'Distance already run','(선택)':'(optional)','목표 수명':'Target lifespan','(교체 알림 기준)':'(replacement reminder)','사진 대신 제품명으로 등록돼요. 닉네임을 넣으면 기록·목록에 닉네임이, 비우면 제품명이 표시됩니다.':'Registered by product name (no photo). A nickname, if added, shows instead of the product name.','신발 저장':'Save shoe','브랜드 검색':'Search brand','+ 목록에 없어요 (직접 입력)':'+ Not listed (enter manually)','신발을 추가했어요':'Shoe added','모델 선택':'Select model','브랜드 선택':'Select brand',
+ '기본 신발로 설정했어요':'Set as default shoe','신을 신발 선택':'Select shoe to wear','사용 중인 신발이 없어요. 새로 등록해 주세요.':'No shoes in use. Please add one.','+ 새 신발 등록':'+ Register new shoe','선택':'Select','✓ 기본 신발':'✓ Default shoe','기본 신발로 설정':'Set as default',
+ '삭제했어요':'Deleted','지난 신발로 옮겼어요':'Moved to past shoes','다시 사용 중으로 옮겼어요':'Back in use','확인':'OK',
+ '신발 수정':'Edit shoe','제품':'Product','(비우면 제품명으로 표시)':'(product name if blank)','현재 누적':'Current total','러닝 기록이 자동 반영돼요. 직접 못 고칩니다.':'Run logs apply automatically; not directly editable.','앱 쓰기 전 거리(초기)':'Distance before app (initial)','앱 쓰기 전 횟수(초기)':'Count before app (initial)','📥 이 신발 은퇴 (지난 신발로 보관)':'📥 Retire this shoe (keep as past)','은퇴해도 거리·기록은 그대로 보관돼요. 새 러닝 신발 선택에서만 숨겨집니다.':"Mileage & runs are kept when retired; it's only hidden from new-run selection.",'🗑 이 신발 삭제':'🗑 Delete this shoe','수정했어요':'Saved',
+ '모든 데이터를 초기 샘플로 되돌릴까요?':'Reset all data to the initial sample?','샘플 데이터로 초기화했어요':'Reset to sample data','로그아웃할까요? (기기에 저장된 기록은 유지됩니다)':'Log out? (runs stored on this device are kept)','이 신발을 삭제할까요? (기록은 유지됩니다)':'Delete this shoe? (runs are kept)','신발 제품명을 입력하세요 (예: 나이키 인빈서블 3)':'Enter the shoe product name (e.g., Nike Invincible 3)','목표 수명(km)을 입력하세요':'Enter target lifespan (km)',
+ '누적 거리 계산 방식':'How mileage is calculated','신발 추가':'Add shoe'
+};
+const I18N_RE=[
+ [/(\d+)월 (\d+)일/g,'$1/$2'],
+ [/오전 (\d+):(\d+)/g,'$1:$2 AM'],[/오후 (\d+):(\d+)/g,'$1:$2 PM'],
+ [/(새벽|오전|오후|저녁) 러닝/g,(m,t)=>_TOD[t]+' run'],
+ [/공기질 (좋음|보통|나쁨|매우나쁨) · 초미세 (\d+)/g,(m,l,n)=>'Air '+_LV[l]+' · PM2.5 '+n],
+ [/주간 목표 ([\d.]+)km까지 ([\d.]+)km/g,'$2km to weekly goal $1km'],
+ [/합계 ([\d.]+) km/g,'Total $1 km'],
+ [/총 (\d+)회 · 누적 ([\d.]+)km/g,'$1 runs · $2km total'],
+ [/누적 ([\d.]+)km · (\d+)회 보관됨 · 측정 목록에서 숨김/g,'$1km · $2 runs kept · hidden from picker'],
+ [/누적 ([\d.]+)km/g,'$1km total'],
+ [/([\d.]+)km 후 교체 권장/g,'$1km until replacement'],
+ [/⚠ 교체 시점 \(([\d.]+)km 권장\)/g,'⚠ Replace soon (rec. $1km)'],
+ [/주 (\d+)회 달리기/g,'Run $1×/week'],
+ [/🔥 (\d+)주 연속/g,'🔥 $1-week streak'],
+ [/다음 (\S+)까지 ([\d.]+)km/g,(m,n,km)=>km+'km to '+(EN[n]||n)],
+ [/레벨 업! (\S+) 달성 🎉/g,(m,n)=>'Level up! '+(EN[n]||n)+' reached 🎉'],
+ [/달리기 (\d+)분 \/ 걷기 (\d+)분 × (\d+)/g,'Run $1min / Walk $2min × $3'],
+ [/(\d+)분 연속 달리기/g,'Run $1min nonstop'],
+ [/쉬운 러닝 (\d+)분/g,'Easy run $1min'],
+ [/인터벌 (\d+)m × (\d+)/g,'Intervals $1m × $2'],
+ [/인터벌 ([\d.]+)km × (\d+)/g,'Intervals $1km × $2'],
+ [/템포 (\d+)분/g,'Tempo $1min'],
+ [/롱런 ([\d.]+)km/g,'Long run $1km'],
+ [/([\d.]+)km 완주 도전/g,'$1km finish challenge'],
+ [/(\d+)\/(\d+) 완료/g,'$1/$2 done'],
+ [/(\d+)주차/g,'Wk $1'],
+ [/^(\d+)주$/g,'$1 weeks'],
+ [/목표 ([\d.]+)km/g,'Goal $1km'],[/목표 (\d+)분/g,'Goal $1 min'],[/목표 페이스 (.+?)\/km/g,'Goal pace $1/km'],
+ [/이 기록\(([\d.]+)km\)을 삭제합니다\./g,'Deleting this run ($1km).'],
+ [/랩 (\d+)/g,'Lap $1'],
+ [/([\d.]+) ?km · (\d+)회/g,'$1km · $2 runs'],
+ [/· (\d+)회/g,'· $1 runs'],
+ [/(\d+)회/g,'$1 runs'],
+];
+function trEN(s){ if(s==null)return null; if(!/[가-힣]/.test(s))return null; const key=s.trim(); if(!key)return null;
+  if(EN[key]!==undefined) return s.replace(key,EN[key]);
+  let out=s,ch=false;
+  for(const r of I18N_RE){ const n=out.replace(r[0],r[1]); if(n!==out){out=n;ch=true;} }
+  return ch?out:null; }
+function translateUI(root){ if(!root||S.lang!=='en')return;
+  try{ const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT); const arr=[]; let n; while(n=w.nextNode())arr.push(n);
+    for(const tn of arr){ const tr=trEN(tn.nodeValue); if(tr!=null&&tr!==tn.nodeValue) tn.nodeValue=tr; }
+    root.querySelectorAll('[placeholder]').forEach(el=>{ const tr=trEN(el.getAttribute('placeholder')); if(tr!=null&&tr!==el.getAttribute('placeholder')) el.setAttribute('placeholder',tr); });
+  }catch(e){} }
+function L(s){ return (S.lang==='en'&&EN[s]!==undefined)?EN[s]:s; }   // 네이티브 다이얼로그(confirm/prompt)용
+function setLang(l){ S.lang=l; save(); render(); translateUI(document.getElementById('phone')); }
+(function(){ const ph=document.getElementById('phone'); if(!ph)return;
+  new MutationObserver(()=>{ if(S.lang==='en') translateUI(ph); }).observe(ph,{childList:true,subtree:true}); })();
 
 //==================== 유틸 ====================
 const $=s=>document.querySelector(s);
@@ -177,6 +284,12 @@ function weekCount(){ const now=new Date('2026-05-30'); const wkAgo=new Date(now
   return S.runs.filter(r=>new Date(r.date)>=wkAgo).length;}
 function shoe(id){return S.shoes.find(s=>s.id===id);}
 function fmtDate(d){const dt=new Date(d);return `${dt.getMonth()+1}월 ${dt.getDate()}일`;}
+// 로컬 기준 날짜 문자열(YYYY-MM-DD) — 자정 부근 시간대 오차 방지
+function todayStr(d){ d=d||new Date(); const z=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`; }
+// 오전/오후 h:mm 형식
+function fmtTime(d){ d=new Date(d); const h=d.getHours(),m=d.getMinutes();
+  return `${h<12?'오전':'오후'} ${((h+11)%12)+1}:${String(m).padStart(2,'0')}`; }
 
 //==================== 탭바 ====================
 const TABS=[['home','🏠','홈'],['log','📋','활동'],['run','🏃','기록'],['shoe','👟','신발'],['my','👤','마이']];
@@ -257,52 +370,97 @@ function setupRunMap(){
   setTimeout(()=>{ try{map.resize();}catch(e){} },300);
 }
 // 기록(측정 시작)은 하단 네비를 덮는 전체화면 모달
-let _recCollapsed=false;
+let _recCollapsed=false, _recView='map';
+function recShoeName(){ const ds=shoe(S.defaultShoe); return ds?sName(ds):'신발 선택'; }
+function recControls(){ const ds=shoe(S.defaultShoe);
+  return `<div style="display:flex;align-items:center;justify-content:center;gap:36px">
+    <div style="text-align:center;width:72px" onclick="openShoePicker()">
+      <button style="width:54px;height:54px;border-radius:50%;background:var(--bg);box-shadow:0 2px 8px rgba(0,0,0,.12);font-size:22px">👟</button>
+      <div style="font-size:10px;color:var(--sub);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ds?sName(ds):'신발 선택'}</div></div>
+    <div style="text-align:center">
+      <button class="startbtn" style="width:80px;height:80px;font-size:30px" onclick="startFromRecord()">▶</button>
+      <div style="font-size:12px;color:var(--brand);font-weight:700;margin-top:6px">START</div></div>
+    <div style="text-align:center;width:72px" onclick="openGoalSheet()">
+      <button style="width:54px;height:54px;border-radius:50%;background:var(--bg);box-shadow:0 2px 8px rgba(0,0,0,.12);font-size:22px">⚙️</button>
+      <div style="font-size:10px;color:var(--sub);margin-top:4px">설정</div></div>
+  </div>`; }
 function recSheetHTML(){
-  const ds=shoe(S.defaultShoe);
-  if(_recCollapsed){
-    return `<div onclick="toggleRecSheet()" style="width:44px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 10px;cursor:pointer"></div>
-      <div onclick="toggleRecSheet()" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer">
-        <span style="font-weight:700">러닝 <span class="muted" style="font-size:12px;font-weight:400">· 탭하여 펼치기</span></span>
-        <button class="startbtn" style="width:48px;height:48px;font-size:20px" onclick="event.stopPropagation();startFromRecord()">▶</button></div>`;
-  }
-  return `<div onclick="toggleRecSheet()" style="width:44px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 12px;cursor:pointer"></div>
-    <div style="text-align:center;font-weight:700;margin-bottom:12px">러닝</div>
-    <div style="display:flex;margin-bottom:14px">
-      <div style="flex:1;text-align:center"><div style="font-size:23px;font-weight:800">00:00</div><div class="muted">시간</div></div>
-      <div style="flex:1;text-align:center"><div style="font-size:23px;font-weight:800">--'--"</div><div class="muted">평균 페이스</div></div>
-      <div style="flex:1;text-align:center"><div style="font-size:23px;font-weight:800">0.00</div><div class="muted">거리(km)</div></div>
+  return `<div style="background:var(--card);border-radius:22px 22px 0 0;box-shadow:0 -6px 24px rgba(0,0,0,.18);padding:18px 16px 26px">
+    <div style="position:relative;text-align:center;font-weight:700;margin-bottom:14px;padding:0 28px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${recShoeName()}
+      <span onclick="setRecView('full')" title="전체화면" style="position:absolute;right:0;top:-1px;cursor:pointer;color:var(--sub);font-size:18px">⤢</span></div>
+    <div style="display:flex">
+      <div style="flex:1;text-align:center"><div style="font-size:22px;font-weight:800">00:00</div><div class="muted">시간</div></div>
+      <div style="flex:1;text-align:center"><div style="font-size:22px;font-weight:800">--'--"</div><div class="muted">평균 페이스</div></div>
+      <div style="flex:1;text-align:center"><div style="font-size:22px;font-weight:800">0.00</div><div class="muted">거리(km)</div></div>
     </div>
-    <div style="display:flex;align-items:center;justify-content:center;gap:36px">
-      <div style="text-align:center;width:72px" onclick="openShoePicker()">
-        <button style="width:54px;height:54px;border-radius:50%;background:var(--bg);box-shadow:0 2px 8px rgba(0,0,0,.12);font-size:22px">👟</button>
-        <div style="font-size:10px;color:var(--sub);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ds?ds.name:'신발 선택'}</div></div>
-      <div style="text-align:center">
-        <button class="startbtn" style="width:80px;height:80px;font-size:30px" onclick="startFromRecord()">▶</button>
-        <div style="font-size:12px;color:var(--brand);font-weight:700;margin-top:6px">START</div></div>
-      <div style="text-align:center;width:72px" onclick="openGoalSheet()">
-        <button style="width:54px;height:54px;border-radius:50%;background:var(--bg);box-shadow:0 2px 8px rgba(0,0,0,.12);font-size:22px">⚙️</button>
-        <div style="font-size:10px;color:var(--sub);margin-top:4px">설정</div></div>
-    </div>`;
+    <div style="height:1px;background:var(--line);margin:16px 0"></div>
+    ${recControls()}
+  </div>`;
+}
+// 공기질(초미세먼지 PM2.5) — 프로토타입이라 시뮬레이션 값. 실제로는 무료 공기질 API(에어코리아 등)를 서버 경유로 연동.
+let _airPM = 18 + Math.floor(Math.random()*45);   // 18~62 ㎍/㎥ (세션 내 고정)
+function airInfo(){ const v=_airPM; let level,color;
+  if(v<=15){level='좋음';color='#1971c2';}
+  else if(v<=35){level='보통';color='#2f9e44';}
+  else if(v<=75){level='나쁨';color='#f08c00';}
+  else {level='매우나쁨';color='#e03131';}
+  return {pm:v,level,color}; }
+function airPillHTML(){ const a=airInfo();
+  return `<div id="airPill" style="position:absolute;top:16px;left:50%;transform:translateX(-50%);background:#fff;border-radius:999px;
+    padding:7px 14px;box-shadow:0 3px 10px rgba(0,0,0,.12);font-size:12px;white-space:nowrap;z-index:500;display:flex;align-items:center;gap:6px;color:${a.color};font-weight:700">
+    <span style="width:8px;height:8px;border-radius:50%;background:${a.color};display:inline-block"></span>공기질 ${a.level} · 초미세 ${a.pm}</div>`; }
+function renderRecord(){
+  const ov=document.getElementById('ovRecord'); if(!ov)return;
+  const hasMap=(typeof maplibregl!=='undefined');
+  if(_recView==='full'){
+    if(_runMap){try{_runMap.remove();}catch(e){}_runMap=null;}
+    ov.innerHTML=`
+      <button onclick="closeRecord()" title="닫기" style="position:absolute;left:16px;top:16px;z-index:600;width:40px;height:40px;border-radius:50%;background:var(--card);color:var(--ink);box-shadow:0 2px 8px rgba(0,0,0,.18);font-size:16px">▾</button>
+      <button onclick="setRecView('map')" title="지도" style="position:absolute;right:16px;top:16px;z-index:600;width:40px;height:40px;border-radius:50%;background:var(--card);color:var(--ink);box-shadow:0 2px 8px rgba(0,0,0,.14);font-size:15px">⤡</button>
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;background:var(--bg)">
+        <div style="text-align:center;padding:66px 30px 0;font-weight:700;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${recShoeName()}</div>
+        <div class="center" style="flex:1">
+          <div style="font-size:90px;font-weight:800;line-height:1;color:var(--ink)">0.00</div>
+          <div class="muted" style="font-size:16px;margin-top:6px">거리 (km)</div>
+          <div style="display:flex;gap:50px;margin-top:40px">
+            <div style="text-align:center"><div style="font-size:28px;font-weight:800">00:00</div><div class="muted">시간</div></div>
+            <div style="text-align:center"><div style="font-size:28px;font-weight:800">--'--"</div><div class="muted">평균 페이스</div></div>
+          </div>
+        </div>
+        <div style="padding:0 18px 32px">${recControls()}</div>
+      </div>`;
+  } else {
+    ov.innerHTML=`
+      <div style="position:absolute;inset:0;overflow:hidden">
+        ${hasMap?'<div id="runmap" style="position:absolute;inset:0;z-index:0;background:#e9eef2"></div>':mapSVG()}
+        ${airPillHTML()}
+        <button onclick="closeRecord()" title="닫기" style="position:absolute;left:16px;top:16px;z-index:600;width:40px;height:40px;border-radius:50%;background:#fff;color:#1a1d23;box-shadow:0 2px 8px rgba(0,0,0,.18);font-size:16px">▾</button>
+        <button onclick="recenterRunMap()" title="현재 위치" style="position:absolute;right:16px;bottom:282px;z-index:550;width:44px;height:44px;border-radius:50%;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.18);display:flex;align-items:center;justify-content:center">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a1d23" stroke-width="2"><circle cx="12" cy="12" r="7"/><line x1="12" y1="1" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="23"/><line x1="1" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="23" y2="12"/><circle cx="12" cy="12" r="2.5" fill="#1a1d23"/></svg></button>
+        <div id="recSheet" class="recsheet" style="position:absolute;left:0;right:0;bottom:0;z-index:500">${recSheetHTML()}</div>
+      </div>`;
+    if(hasMap) setTimeout(setupRunMap,0);
+  }
+}
+function recenterRunMap(){
+  if(!_runMap)return;
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(
+      p=>{ try{_runMap.flyTo({center:[p.coords.longitude,p.coords.latitude],zoom:16});}catch(e){} },
+      ()=>{ try{_runMap.flyTo({center:[126.901,37.556],zoom:15});}catch(e){} },
+      {enableHighAccuracy:true,timeout:8000});
+  } else { try{_runMap.flyTo({center:[126.901,37.556],zoom:15});}catch(e){} }
 }
 function openRecord(){
   if(document.getElementById('ovRecord'))return;
-  _recCollapsed=false;
-  const hasMap=(typeof maplibregl!=='undefined');
+  _recCollapsed=false; _recView='map';
   const ov=document.createElement('div'); ov.className='overlay'; ov.id='ovRecord'; ov.style.padding='0';
-  ov.innerHTML=`
-    <div style="position:absolute;inset:0;overflow:hidden">
-      ${hasMap?'<div id="runmap" style="position:absolute;inset:0;z-index:0;background:#e9eef2"></div>':mapSVG()}
-      <div id="gpsPill" style="position:absolute;top:16px;left:50%;transform:translateX(-50%);background:#fff;border-radius:999px;
-        padding:8px 16px;box-shadow:0 3px 10px rgba(0,0,0,.12);font-size:12px;color:var(--ok);white-space:nowrap;z-index:500">${hasMap?'● 위치 확인 중…':'● GPS 연결됨 (시뮬레이션)'}</div>
-      <button onclick="closeRecord()" title="닫기" style="position:absolute;left:16px;top:16px;z-index:600;width:40px;height:40px;border-radius:50%;background:#fff;color:#1a1d23;box-shadow:0 2px 8px rgba(0,0,0,.18);font-size:16px">▾</button>
-      <div id="recSheet" class="recsheet" style="position:absolute;left:0;right:0;bottom:0;z-index:500;background:var(--card);border-radius:22px 22px 0 0;box-shadow:0 -6px 24px rgba(0,0,0,.16);padding:8px 16px 26px">${recSheetHTML()}</div>
-    </div>`;
-  $('#phone').appendChild(ov);
-  if(hasMap) setTimeout(setupRunMap,0);
+  ov.style.animation='none';   // 오버레이는 그대로, 하단 시트만 슬라이드업
+  $('#phone').appendChild(ov); renderRecord();
 }
+function setRecView(v){ _recView=v; renderRecord(); }
 function toggleRecSheet(){ _recCollapsed=!_recCollapsed; const s=document.getElementById('recSheet'); if(s)s.innerHTML=recSheetHTML(); }
-function closeRecord(){ const ov=document.getElementById('ovRecord'); if(ov)ov.remove(); if(_runMap){try{_runMap.remove();}catch(e){}_runMap=null;} }
+function closeRecord(){ const ov=document.getElementById('ovRecord'); if(ov)ov.remove(); if(_runMap){try{_runMap.remove();}catch(e){}_runMap=null;} _planWorkout=null; _planMark=null; }
 function startFromRecord(){ closeRecord(); startRun(); }
 
 function statBuckets(period){
@@ -325,21 +483,170 @@ function barChart(bk){ const max=Math.max(0.1,...bk.map(x=>x.km)),W=300,H=126,n=
     const h=Math.max(2,b.km/max*(H-30)),x=i*bw+bw*0.2,y=H-20-h,w=bw*0.6;
     return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="3" fill="${b.km>0?'#ff5a3c':'#cfd3da'}"/>
       <text x="${(x+w/2).toFixed(1)}" y="${H-5}" font-size="10" fill="#9aa0ab" text-anchor="middle">${b.label}</text>
-      ${b.km>0?`<text x="${(x+w/2).toFixed(1)}" y="${(y-4).toFixed(1)}" font-size="9" fill="#ff5a3c" text-anchor="middle" font-weight="700">${b.km.toFixed(1)}</text>`:''}`;
+      ${b.km>0?`<text x="${(x+w/2).toFixed(1)}" y="${(y-4).toFixed(1)}" font-size="9" fill="#ff5a3c" text-anchor="middle" font-weight="700">${b.km.toFixed(0)}</text>`:''}`;
   }).join('')+`</svg>`; }
+// 지난주(이번 주 직전 7일) 거리
+function lastWeekKm(){ const n=new Date('2026-05-30'); const end=new Date(n); end.setDate(n.getDate()-7); const start=new Date(end); start.setDate(end.getDate()-6);
+  return S.runs.filter(r=>{const d=new Date(r.date);return d>=start&&d<=end;}).reduce((a,r)=>a+r.dist,0); }
+// 작은 추세 라인 차트
+function miniLine(vals,color){ if(!vals||vals.length<2)return '<div class="muted" style="font-size:11px;padding:12px 0;text-align:center">데이터가 부족해요</div>';
+  const W=150,H=42,mn=Math.min(...vals),mx=Math.max(...vals),rng=(mx-mn)||1,n=vals.length;
+  const xy=vals.map((v,i)=>[(i/(n-1))*(W-8)+4,H-6-((v-mn)/rng)*(H-12)]);
+  const pts=xy.map(p=>`${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' '); const last=xy[xy.length-1];
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="3" fill="${color}"/></svg>`; }
 function prData(){ const runs=S.runs; if(!runs.length)return null;
   const best=Math.min(...runs.filter(r=>r.dist>=1).map(r=>r.dur/r.dist));
   return {longest:Math.max(...runs.map(r=>r.dist)),total:runs.reduce((a,r)=>a+r.dist,0),
     count:runs.length,bestPace:isFinite(best)?best:0}; }
+// 누적 거리 기반 레벨/등급
+const LEVELS=[[0,'브론즈','🥉'],[50,'실버','🥈'],[150,'골드','🥇'],[300,'플래티넘','🏆'],[600,'다이아몬드','💎'],[1000,'마스터','👑']];
+function totalKm(){ return S.runs.reduce((a,r)=>a+r.dist,0); }
+function levelIdx(t){ let i=0; for(let k=0;k<LEVELS.length;k++) if(t>=LEVELS[k][0]) i=k; return i; }
+function levelInfo(){ const t=totalKm(),i=levelIdx(t),cur=LEVELS[i],next=LEVELS[i+1];
+  return {name:cur[1],ic:cur[2],total:t,nextName:next?next[1]:null,toNext:next?Math.max(0,next[0]-t):0,
+    pct:next?((t-cur[0])/(next[0]-cur[0])*100):100}; }
+//==================== 훈련 플랜 (미리 정의형) ====================
+const _b=(t,d)=>[{t,d},{t,d},{t,d}];   // 같은 세션 주 3회
+const PLANS=[
+ {id:'beginner',name:'초보 8주',sub:'걷기-달리기 → 30분 연속',weeks:[
+   _b('걷기런','달리기 1분 / 걷기 2분 × 8'),_b('걷기런','달리기 2분 / 걷기 2분 × 6'),_b('걷기런','달리기 3분 / 걷기 2분 × 5'),
+   _b('걷기런','달리기 5분 / 걷기 2분 × 4'),_b('걷기런','달리기 8분 / 걷기 2분 × 3'),_b('걷기런','달리기 10분 / 걷기 1분 × 3'),
+   _b('걷기런','달리기 15분 / 걷기 1분 × 2'),_b('연속','30분 연속 달리기')]},
+ {id:'5k',name:'5K 도전',sub:'6주 · 주 3회',weeks:[
+   [{t:'쉬운',d:'쉬운 러닝 20분'},{t:'인터벌',d:'인터벌 400m × 4'},{t:'롱런',d:'롱런 3km'}],
+   [{t:'쉬운',d:'쉬운 러닝 25분'},{t:'인터벌',d:'인터벌 400m × 5'},{t:'롱런',d:'롱런 3.5km'}],
+   [{t:'쉬운',d:'쉬운 러닝 25분'},{t:'템포',d:'템포 15분'},{t:'롱런',d:'롱런 4km'}],
+   [{t:'쉬운',d:'쉬운 러닝 30분'},{t:'인터벌',d:'인터벌 800m × 3'},{t:'롱런',d:'롱런 4.5km'}],
+   [{t:'쉬운',d:'쉬운 러닝 30분'},{t:'템포',d:'템포 20분'},{t:'롱런',d:'롱런 5km'}],
+   [{t:'쉬운',d:'쉬운 러닝 20분'},{t:'쉬운',d:'쉬운 러닝 25분'},{t:'연속',d:'5km 완주 도전'}]]},
+ {id:'10k',name:'10K 도전',sub:'8주 · 주 3-4회',weeks:[
+   [{t:'쉬운',d:'쉬운 러닝 30분'},{t:'인터벌',d:'인터벌 800m × 4'},{t:'롱런',d:'롱런 5km'}],
+   [{t:'쉬운',d:'쉬운 러닝 30분'},{t:'템포',d:'템포 20분'},{t:'롱런',d:'롱런 6km'}],
+   [{t:'쉬운',d:'쉬운 러닝 35분'},{t:'인터벌',d:'인터벌 1km × 3'},{t:'롱런',d:'롱런 7km'}],
+   [{t:'쉬운',d:'쉬운 러닝 35분'},{t:'템포',d:'템포 25분'},{t:'롱런',d:'롱런 8km'}],
+   [{t:'쉬운',d:'쉬운 러닝 40분'},{t:'인터벌',d:'인터벌 1km × 4'},{t:'롱런',d:'롱런 8km'}],
+   [{t:'쉬운',d:'쉬운 러닝 40분'},{t:'템포',d:'템포 30분'},{t:'롱런',d:'롱런 9km'}],
+   [{t:'쉬운',d:'쉬운 러닝 30분'},{t:'템포',d:'템포 20분'},{t:'롱런',d:'롱런 10km'}],
+   [{t:'쉬운',d:'쉬운 러닝 25분'},{t:'쉬운',d:'쉬운 러닝 30분'},{t:'연속',d:'10km 완주 도전'}]]},
+];
+let _planWeek=null;
+function planCurWeek(p){ if(!S.plan)return 0; const w=Math.floor((Date.now()-new Date(S.plan.start).getTime())/(7*864e5)); return Math.max(0,Math.min(p.weeks.length-1,w)); }
+function planStats(p){ let total=0,done=0; p.weeks.forEach((wk,wi)=>wk.forEach((d,di)=>{total++; if(S.plan.done[wi+'-'+di])done++;})); return {total,done,pct:total?done/total*100:0}; }
+function openPlans(){ const old=$('#ovPlans'); if(old)old.remove(); _planWeek=null;
+  const ov=document.createElement('div'); ov.className='overlay'; ov.id='ovPlans'; ov.style.padding='0';
+  ov.innerHTML=`<div style="position:absolute;inset:0;display:flex;flex-direction:column">
+    <div class="topbar" style="flex:none;padding:18px 18px 6px"><button class="x" onclick="document.getElementById('ovPlans').remove()">✕</button><b style="flex:1;text-align:center">훈련 플랜</b><span style="width:22px"></span></div>
+    <div style="flex:1;overflow-y:auto;padding:6px 18px 22px" id="planBody"></div></div>`;
+  $('#phone').appendChild(ov); renderPlanBody(); }
+function renderPlanBody(){ const el=$('#planBody'); if(!el)return;
+  if(!S.plan){ el.innerHTML=`<div class="muted" style="margin:2px 2px 12px">목표를 골라 시작하세요. 주차별 운동을 따라 하고 완료를 체크하면 진행률이 쌓여요.</div>`+
+    PLANS.map(p=>`<div class="card"><div class="row"><b>${p.name}</b><span class="muted">${p.weeks.length}주</span></div>
+      <div class="muted" style="margin:4px 0 12px">${p.sub}</div>
+      <button class="btn" onclick="startPlan('${p.id}')">시작하기</button></div>`).join(''); return; }
+  const p=PLANS.find(x=>x.id===S.plan.id); if(!p){ S.plan=null; save(); return renderPlanBody(); }
+  if(_planWeek==null)_planWeek=planCurWeek(p);
+  const st=planStats(p);
+  const wsel=p.weeks.map((_,i)=>`<button class="chip ${i===_planWeek?'on':''}" onclick="setPlanWeek(${i})">${i+1}주차</button>`).join('');
+  const rows=p.weeks[_planWeek].map((d,di)=>{ const ok=!!S.plan.done[_planWeek+'-'+di];
+    return `<div class="card" style="display:flex;align-items:center;gap:12px">
+      <div onclick="toggleWorkout(${_planWeek},${di})" style="width:26px;height:26px;border-radius:50%;border:2px solid ${ok?'var(--ok)':'var(--line)'};background:${ok?'var(--ok)':'transparent'};color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex:none;cursor:pointer">${ok?'✓':''}</div>
+      <div style="flex:1;min-width:0"><div style="font-size:11px;color:var(--brand);font-weight:700">${d.t}</div><div style="font-weight:600">${d.d}</div></div>
+      <button onclick="startPlanRun(${_planWeek},${di})" title="측정 시작" style="background:var(--brand);color:#fff;width:34px;height:34px;border-radius:50%;flex:none;font-size:15px">▶</button></div>`;}).join('');
+  const NEXT={beginner:'5k','5k':'10k'}, nx=NEXT[p.id];
+  const doneCard = (st.total>0&&st.done>=st.total) ? `<div class="card" style="border:2px solid var(--brand);text-align:center">
+      <div style="font-size:34px">🎉</div><div style="font-size:17px;margin-top:2px"><b>${p.name}</b> <span>완주! 🎉</span></div>
+      <div class="muted" style="margin:8px 0 14px">모든 주차를 마쳤어요. 잘했어요!</div>
+      ${nx?`<button class="btn" onclick="startPlan('${nx}')">다음 단계 시작</button><div class="muted" style="margin-top:6px">${PLANS.find(x=>x.id===nx).name}</div>`:`<div class="muted">최고 단계까지 완주했어요 🏆</div>`}
+      <button class="btn ghost" style="margin-top:8px" onclick="quitPlan()">플랜 종료</button></div>` : '';
+  el.innerHTML=doneCard+`<div class="card"><div class="row"><b>${p.name}</b><button onclick="quitPlan()" style="background:none;color:var(--warn);font-size:12px;font-weight:600">그만두기</button></div>
+      <div class="bar" style="margin-top:10px"><i style="width:${st.pct}%;background:var(--ok)"></i></div>
+      <div class="muted" style="margin-top:6px">${st.done}/${st.total} 완료</div></div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 12px">${wsel}</div>${rows}`; }
+// 인터벌 음성 가이드
+let _planWorkout=null, _planMark=null;
+function parseWorkout(d){
+  let m=d.match(/달리기 (\d+)분 \/ 걷기 (\d+)분 × (\d+)/);
+  if(m){ const r=+m[1]*60,w=+m[2]*60,n=+m[3],seq=[]; for(let k=0;k<n;k++){ seq.push({p:'run',sec:r}); seq.push({p:'walk',sec:w}); } return {seq,reps:n}; }
+  m=d.match(/(\d+)분 연속 달리기/)||d.match(/쉬운 러닝 (\d+)분/)||d.match(/템포 (\d+)분/);
+  if(m) return {seq:[{p:'run',sec:+m[1]*60}],reps:1};
+  return null; }
+function ivAnnounce(i,first){ const isRun=RUN.iv.seq[i].p==='run';
+  if(S.lang==='en') speak(first?'Start running.':(isRun?'Run now.':'Walk now.'));
+  else speak(first?'달리기 시작.':(isRun?'이제 달리세요.':'이제 걸으세요.')); }
+function ivBannerShow(){ ivBannerHide(); const b=document.createElement('div'); b.id='ivBanner';
+  b.style.cssText='position:absolute;left:16px;right:16px;top:70px;z-index:1600;background:var(--brand);color:#fff;border-radius:14px;padding:11px 16px;text-align:center;font-weight:800;box-shadow:0 6px 18px rgba(255,90,60,.4)';
+  $('#phone').appendChild(b); ivBannerUpdate(); }
+function ivBannerHide(){ const b=document.getElementById('ivBanner'); if(b)b.remove(); }
+function ivBannerUpdate(){ const b=document.getElementById('ivBanner'); if(!b||!RUN||!RUN.iv)return; const s=RUN.iv.seq[RUN.iv.i],rem=Math.max(0,s.sec-RUN.iv.t),isRun=s.p==='run',setNo=Math.floor(RUN.iv.i/2)+1;
+  const lbl=S.lang==='en'?(isRun?'🏃 Run':'🚶 Walk'):(isRun?'🏃 달리기':'🚶 걷기');
+  const setTxt=RUN.iv.reps>1?` · ${S.lang==='en'?'set':'세트'} ${setNo}/${RUN.iv.reps}`:'';
+  b.textContent=`${lbl} · ${fmtDur(rem)}${setTxt}`; }
+function checkPlanComplete(){ if(!S.plan)return; const p=PLANS.find(x=>x.id===S.plan.id); if(!p)return; const st=planStats(p);
+  if(st.total>0&&st.done>=st.total){ S.plansDone=S.plansDone||[]; if(!S.plansDone.includes(p.id)){ S.plansDone.push(p.id); save(); toast('플랜 완주! 🎉'); } } }
+function startPlan(id){ S.plan={id,start:todayStr(),done:{}}; _planWeek=0; save(); renderPlanBody(); render(); toast('플랜을 시작했어요'); }
+function quitPlan(){ if(!confirm(L('플랜을 그만둘까요? (진행 상황이 사라져요)')))return; S.plan=null; _planWeek=null; save(); renderPlanBody(); render(); toast('플랜을 종료했어요'); }
+function setPlanWeek(i){ _planWeek=i; renderPlanBody(); }
+function toggleWorkout(wi,di){ const k=wi+'-'+di; S.plan.done[k]=!S.plan.done[k]; save(); checkPlanComplete(); renderPlanBody(); }
+function startPlanRun(wi,di){ const p=PLANS.find(x=>x.id===S.plan.id);
+  _planWorkout=p?parseWorkout(p.weeks[wi][di].d):null; _planMark={wi,di};
+  const ov=$('#ovPlans'); if(ov)ov.remove(); openRecord(); }
+// 이번 달(데모 기준일 2026-05) 누적 거리
+function monthKm(){ const n=new Date('2026-05-30');
+  return S.runs.filter(r=>{const d=new Date(r.date);return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth();}).reduce((a,r)=>a+r.dist,0); }
+// 연속 주 스트릭: 이번 주부터 거슬러 올라가며 1회 이상 달린 주가 연속된 수
+function streakWeeks(){ const n=new Date('2026-05-30'); let s=0;
+  for(let w=0;w<52;w++){ const end=new Date(n); end.setDate(n.getDate()-w*7); const start=new Date(end); start.setDate(end.getDate()-6);
+    const has=S.runs.some(r=>{const d=new Date(r.date);return d>=start&&d<=end;});
+    if(has)s++; else break; }
+  return s; }
+// 진행 중 챌린지 (전부 로컬 기록으로 계산)
+function challenges(){ const wk=weekKm(),mk=monthKm(),wc=weekCount(),gm=S.monthGoal||80,gr=S.weekRunGoal||3;
+  return [
+    {label:'이번 주 거리',cur:wk.toFixed(1),goal:S.goal,unit:'km',pct:wk/S.goal*100,ok:wk>=S.goal},
+    {label:'이번 달 거리',cur:mk.toFixed(1),goal:gm,unit:'km',pct:mk/gm*100,ok:mk>=gm},
+    {label:`주 ${gr}회 달리기`,cur:wc,goal:gr,unit:'회',pct:wc/gr*100,ok:wc>=gr},
+  ]; }
+// 홈 챌린지 카드 → 목표(주간 거리·월간 거리·주 횟수) 설정 시트
+function openGoalSettings(){
+  const old=document.getElementById('ovGoals'); if(old)old.remove();
+  const inp='style="width:92px;padding:9px;border:1px solid var(--line);border-radius:8px;font-size:15px;text-align:right;background:var(--card);color:var(--ink)"';
+  const ov=document.createElement('div'); ov.className='overlay'; ov.id='ovGoals';
+  ov.style.background='rgba(0,0,0,0.4)'; ov.style.justifyContent='flex-end'; ov.style.padding='0';
+  ov.onclick=(e)=>{ if(e.target===ov) ov.remove(); };
+  ov.innerHTML=`<div style="background:var(--card);border-radius:20px 20px 0 0;padding:18px 16px 26px">
+    <div class="row" style="margin-bottom:14px"><b>목표 설정</b><button class="x" onclick="document.getElementById('ovGoals').remove()">✕</button></div>
+    <div class="card"><div class="row"><span>주간 목표 거리</span><span><input id="gWeek" type="number" min="1" step="1" value="${S.goal}" ${inp}> km</span></div></div>
+    <div class="card"><div class="row"><span>월간 목표 거리</span><span><input id="gMonth" type="number" min="1" step="5" value="${S.monthGoal||80}" ${inp}> km</span></div></div>
+    <div class="card"><div class="row"><span>주 러닝 횟수</span><span><input id="gRun" type="number" min="1" max="14" step="1" value="${S.weekRunGoal||3}" ${inp}> 회</span></div></div>
+    <div class="muted" style="font-size:11px;margin:2px 4px 14px">목표는 홈 챌린지에 바로 반영돼요.</div>
+    <button class="btn" onclick="saveGoals()">저장</button></div>`;
+  $('#phone').appendChild(ov);
+}
+function saveGoals(){
+  const w=Math.max(1,parseFloat(document.getElementById('gWeek').value)||S.goal);
+  const m=Math.max(1,parseFloat(document.getElementById('gMonth').value)||S.monthGoal||80);
+  const r=Math.max(1,Math.min(14,parseInt(document.getElementById('gRun').value,10)||S.weekRunGoal||3));
+  S.goal=w; S.monthGoal=m; S.weekRunGoal=r; save();
+  const ov=document.getElementById('ovGoals'); if(ov)ov.remove(); render(); toast('목표를 저장했어요');
+}
 function badges(){ const runs=S.runs,total=runs.reduce((a,r)=>a+r.dist,0);
+  const night=runs.some(r=>{ if(!r.at)return false; const h=new Date(r.at).getHours(); return h>=20||h<5; });
   return [{ic:'🎽',label:'첫 러닝',ok:runs.length>=1},{ic:'5️⃣',label:'5K 완주',ok:runs.some(r=>r.dist>=5)},
     {ic:'🔟',label:'10K 완주',ok:runs.some(r=>r.dist>=10)},{ic:'🔥',label:'주 3회',ok:weekCount()>=3},
-    {ic:'🏅',label:'누적 50km',ok:total>=50},{ic:'💯',label:'누적 100km',ok:total>=100}]; }
+    {ic:'🏅',label:'누적 50km',ok:total>=50},{ic:'💯',label:'누적 100km',ok:total>=100},
+    {ic:'🚀',label:'누적 200km',ok:total>=200},{ic:'📅',label:'월 100km',ok:monthKm()>=100},
+    {ic:'⚡',label:'4주 연속',ok:streakWeeks()>=4},{ic:'🌙',label:'야간 러닝',ok:night},
+    {ic:'🏁',label:'플랜 완주',ok:(S.plansDone||[]).length>0}]; }
 function setStat(p){ S.statPeriod=p; save(); render(); }
 function renderHome(){
   const wk=weekKm(), wc=weekCount(), ds=shoe(S.defaultShoe);
   const recent=[...S.runs].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,3);
   const P=S.statPeriod||'week', bk=statBuckets(P), sum=bk.reduce((a,x)=>a+x.km,0), pr=prData();
+  const lw=lastWeekKm(), dlt=wk-lw;
+  const cmpTxt=lw>0?`${dlt>=0?'▲':'▼'} ${Math.abs(dlt).toFixed(1)}km (${Math.abs(dlt/lw*100).toFixed(0)}%)`:(wk>0?'지난주 기록 없음':'기록 없음');
+  const rs=[...S.runs].sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(-8);
+  const paceSeries=rs.map(r=>r.dur/r.dist), hrSeries=rs.map(r=>r.hr);
+  const lv=levelInfo();
   view().innerHTML=`
     <h1>안녕하세요 👋</h1>
     <div class="card">
@@ -349,6 +656,23 @@ function renderHome(){
       <div class="bar"><i style="width:${Math.min(100,wk/S.goal*100)}%"></i></div>
     </div>
     <div class="card">
+      <div class="row" style="margin-bottom:8px"><span style="font-size:16px"><span style="font-size:20px">${lv.ic}</span> <b>${lv.name}</b></span><span class="muted">누적 ${lv.total.toFixed(0)}km</span></div>
+      <div class="bar"><i style="width:${Math.min(100,lv.pct)}%"></i></div>
+      <div class="muted" style="margin-top:6px">${lv.nextName?`다음 ${lv.nextName}까지 ${lv.toNext.toFixed(0)}km`:'최고 등급 달성 🎉'}</div>
+    </div>
+    <div class="card" onclick="openGoalSettings()">
+      <div class="row" style="margin-bottom:12px"><b>챌린지 <span class="muted" style="font-size:11px;font-weight:400">✎ 목표 설정</span></b><span class="brand" style="font-weight:800">🔥 ${streakWeeks()}주 연속</span></div>
+      ${challenges().map(c=>`<div style="margin-bottom:12px">
+        <div class="row" style="margin-bottom:5px"><span style="font-size:13px${c.ok?';color:var(--ok);font-weight:700':''}">${c.ok?'✓ ':''}${c.label}</span><span class="muted">${c.cur} / ${c.goal}${c.unit}</span></div>
+        <div class="bar"><i style="width:${Math.min(100,c.pct)}%;background:${c.ok?'var(--ok)':'var(--brand)'}"></i></div></div>`).join('')}
+    </div>
+    ${S.plan&&PLANS.find(x=>x.id===S.plan.id)?(()=>{const p=PLANS.find(x=>x.id===S.plan.id),st=planStats(p);
+      return `<div class="card" onclick="openPlans()"><div class="row"><b>훈련 플랜</b><span class="muted">${p.name} ›</span></div>
+        <div class="bar" style="margin-top:10px"><i style="width:${st.pct}%;background:var(--ok)"></i></div>
+        <div class="muted" style="margin-top:6px">${st.done}/${st.total} 완료</div></div>`;})()
+      :`<div class="card" onclick="openPlans()"><div class="row"><b>훈련 플랜 시작하기</b><span class="brand" style="font-weight:700;font-size:18px">›</span></div>
+        <div class="muted" style="margin-top:4px">초보 8주 · 5K · 10K 프로그램</div></div>`}
+    <div class="card">
       <div class="row" style="margin-bottom:10px"><b>통계</b>
         <div class="seg" style="width:180px">
           <button class="${P==='week'?'on':''}" onclick="setStat('week')">주간</button>
@@ -356,6 +680,12 @@ function renderHome(){
           <button class="${P==='year'?'on':''}" onclick="setStat('year')">연간</button></div></div>
       ${barChart(bk)}
       <div class="muted" style="text-align:center;margin-top:6px">합계 ${sum.toFixed(1)} km</div>
+      <div style="height:1px;background:var(--line);margin:14px 0"></div>
+      <div class="row" style="margin-bottom:10px"><span class="muted">지난주 대비</span><b style="color:${dlt>=0?'var(--ok)':'var(--warn)'}">${cmpTxt}</b></div>
+      <div style="display:flex;gap:14px">
+        <div style="flex:1"><div class="muted" style="font-size:11px;margin-bottom:2px">페이스 추세 <span style="font-size:10px">(낮을수록 빠름)</span></div>${miniLine(paceSeries,'#2f6df6')}</div>
+        <div style="flex:1"><div class="muted" style="font-size:11px;margin-bottom:2px">심박 추세</div>${miniLine(hrSeries,'#e0245e')}</div>
+      </div>
     </div>
     ${pr?`<div class="card"><div style="font-weight:700;margin-bottom:10px">개인 기록 (PR)</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
@@ -373,7 +703,7 @@ function renderHome(){
       <div class="row"><b>${fmtDate(r.date)}</b><span class="brand">${r.dist.toFixed(2)} km</span></div>
       <div class="muted">${fmtDur(r.dur)} · ${pace(r.dist,r.dur)}/km · ❤ ${r.hr}</div></div>`).join('')}
     <div class="row" style="margin:14px 4px 8px"><b>자주 신는 러닝화</b></div>
-    ${ds?`<div class="card"><div class="row"><span>👟 ${ds.name}</span>
+    ${ds?`<div class="card"><div class="row"><span>👟 ${sName(ds)}</span>
       <span class="muted">${ds.km.toFixed(0)}km · ${ds.count}회</span></div></div>`:''}`;
 }
 
@@ -390,8 +720,8 @@ function renderLog(){
       <div style="display:flex;gap:12px;align-items:center">
         <div id="thumb_${r.id}" style="width:66px;height:66px;border-radius:12px;overflow:hidden;flex:none;background:#e3e9ef">${useMap?'':miniRouteSVG(r,66)}</div>
         <div style="flex:1;min-width:0">
-          <div class="row"><b>${fmtDate(r.date)}</b><span class="brand" style="font-weight:800">${r.dist.toFixed(2)} km</span></div>
-          <div class="muted" style="margin-top:4px">⏱ ${fmtDur(r.dur)} · 🏃 ${pace(r.dist,r.dur)}/km</div>
+          <div class="row"><b style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.title||'러닝'}</b><span class="brand" style="font-weight:800;flex:none">${r.dist.toFixed(2)} km</span></div>
+          <div class="muted" style="margin-top:3px">${fmtDate(r.date)} · ⏱ ${fmtDur(r.dur)} · 🏃 ${pace(r.dist,r.dur)}/km</div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px;text-align:center">
@@ -400,7 +730,7 @@ function renderLog(){
         <div><div class="muted" style="font-size:11px">심박수</div><div style="font-weight:700;font-size:13px;color:#e0245e">${r.hr}</div></div>
         <div><div class="muted" style="font-size:11px">칼로리</div><div style="font-weight:700;font-size:13px">${r.cal}</div></div>
       </div>
-      <div class="muted" style="margin-top:10px">👟 ${sh?sh.name:'-'} · <span class="brand">상세 보기 ›</span></div></div>`;}).join('')}`;
+      <div class="muted" style="margin-top:10px">👟 ${sh?sName(sh):'삭제된 신발'} · <span class="brand">상세 보기 ›</span></div></div>`;}).join('')}`;
   if(useMap) setTimeout(()=>{ runs.forEach(r=>drawRouteMap('thumb_'+r.id,r,false)); },0);
 }
 
@@ -410,22 +740,35 @@ function renderShoe(){
     <div class="empty"><div class="ic">👟</div><div class="t">등록된 러닝화가 없어요</div>
       <div class="d">신발을 등록하면 러닝마다<br>거리·횟수가 자동으로 쌓여요.</div>
       <button class="btn" style="max-width:200px;margin:18px auto 0" onclick="openShoeAdd()">신발 등록하기</button></div>`; return; }
+  const active=S.shoes.filter(s=>!s.retired), retired=S.shoes.filter(s=>s.retired);
   view().innerHTML=`<div class="row"><h1>내 러닝화</h1>
-      <button class="btn sm" onclick="openShoeAdd()">+ 추가</button></div>`+`
-    ${S.shoes.map(s=>{const pct=s.km/s.max; const warn=pct>0.85;
-      return `<div class="card">
-        <div class="row"><span><span class="shoe-emoji">👟</span><b>${s.name}</b></span>
-          <span style="white-space:nowrap">
-            <button style="background:none;font-size:17px;color:var(--sub);padding:4px 8px" onclick="editShoe(${s.id})">✏️</button>
-            <button style="background:none;font-size:17px;color:var(--sub);padding:4px 8px" onclick="delShoe(${s.id})">🗑</button></span></div>
-        <div style="margin-top:8px"><span class="brand big" style="font-size:20px">${s.km.toFixed(0)} km</span>
-          <span class="muted"> · ${s.count}회</span></div>
-        <div class="bar"><i style="width:${Math.min(100,pct*100)}%;background:${warn?'var(--warn)':'var(--brand)'}"></i></div>
-        <div class="muted" style="margin-top:6px;color:${warn?'var(--warn)':'var(--sub)'}">
-          ${warn?`⚠ 교체 시점 (${s.max}km 권장)`:`${(s.max-s.km).toFixed(0)}km 후 교체 권장`}</div>
-        <button class="btn ghost sm" style="margin-top:10px;width:100%" onclick="setDefaultShoe(${s.id})">
-          ${S.defaultShoe===s.id?'✓ 기본 신발':'기본 신발로 설정'}</button>
-      </div>`;}).join('')}`;
+      <button class="btn sm" onclick="openShoeAdd()">+ 추가</button></div>`
+    + (active.length ? active.map(shoeCardHTML).join('')
+        : `<div class="card"><div class="muted" style="text-align:center;padding:10px;line-height:1.6">사용 중인 신발이 없어요.<br>새로 추가하거나 아래 지난 신발을 되살려 보세요.</div></div>`)
+    + (retired.length ? `<div class="row" style="margin:20px 4px 8px"><b style="color:var(--sub)">지난 신발 · 은퇴</b><span class="muted">${retired.length}</span></div>`
+        + retired.map(retiredCardHTML).join('') : '');
+}
+function shoeCardHTML(s){ const pct=s.km/s.max, warn=pct>0.85;
+  return `<div class="card">
+    <div class="row"><span style="min-width:0"><span class="shoe-emoji">👟</span><b>${sName(s)}</b>${s.nick?` <span class="muted" style="font-size:11px;font-weight:400">${s.name}</span>`:''}</span>
+      <button style="background:none;font-size:17px;color:var(--sub);padding:4px 7px;flex:none" onclick="editShoe(${s.id})" title="수정">✏️</button></div>
+    <div style="margin-top:8px"><span class="brand big" style="font-size:20px">${s.km.toFixed(0)} km</span>
+      <span class="muted"> · ${s.count}회</span></div>
+    <div class="bar"><i style="width:${Math.min(100,pct*100)}%;background:${warn?'var(--warn)':'var(--brand)'}"></i></div>
+    <div class="muted" style="margin-top:6px;color:${warn?'var(--warn)':'var(--sub)'}">
+      ${warn?`⚠ 교체 시점 (${s.max}km 권장)`:`${(s.max-s.km).toFixed(0)}km 후 교체 권장`}</div>
+    <button class="btn ghost sm" style="margin-top:10px;width:100%" onclick="setDefaultShoe(${s.id})">
+      ${S.defaultShoe===s.id?'✓ 기본 신발':'기본 신발로 설정'}</button>
+  </div>`;
+}
+function retiredCardHTML(s){
+  return `<div class="card" style="opacity:.72;background:var(--bg)">
+    <div class="row"><span style="min-width:0"><span class="shoe-emoji" style="filter:grayscale(1)">👟</span><b style="color:var(--sub)">${sName(s)}</b></span>
+      <span style="white-space:nowrap;flex:none">
+        <button class="btn ghost sm" style="width:auto;padding:5px 10px;margin:0" onclick="restoreShoe(${s.id})">되살리기</button>
+        <button style="background:none;font-size:17px;color:var(--sub);padding:4px 7px" onclick="delShoe(${s.id})" title="삭제">🗑</button></span></div>
+    <div class="muted" style="margin-top:7px">누적 ${s.km.toFixed(0)}km · ${s.count}회 보관됨 · 측정 목록에서 숨김</div>
+  </div>`;
 }
 
 function renderMy(){
@@ -447,19 +790,14 @@ function renderMy(){
     </div>`;
   view().innerHTML=`<h1>마이</h1>
     ${account}
-    <div class="card">
-      <div class="row"><b>이번 주 목표</b><span class="brand">${weekKm().toFixed(1)} / ${S.goal} km</span></div>
-      <div class="bar"><i style="width:${Math.min(100,weekKm()/S.goal*100)}%"></i></div>
-      <div style="margin-top:12px"><span class="muted">주간 목표 거리</span>
-        <input type="range" min="5" max="60" value="${S.goal}" style="width:100%;accent-color:var(--brand)"
-          oninput="S.goal=+this.value;document.getElementById('goalv').textContent=this.value"
-          onchange="save();render()">
-        <div class="brand" style="text-align:right;font-weight:700"><span id="goalv">${S.goal}</span> km</div></div>
-    </div>
     <div class="card"><div class="row"><span>단위</span>
       <div class="seg" style="width:140px">
         <button class="${S.unit==='km'?'on':''}" onclick="S.unit='km';save();render()">km</button>
         <button class="${S.unit==='mi'?'on':''}" onclick="S.unit='mi';save();render()">mile</button></div></div></div>
+    <div class="card"><div class="row"><span>언어</span>
+      <div class="seg" style="width:160px">
+        <button class="${S.lang==='ko'?'on':''}" onclick="setLang('ko')">한국어</button>
+        <button class="${S.lang==='en'?'on':''}" onclick="setLang('en')">English</button></div></div></div>
     <div class="card" onclick="openProfile()"><div class="row"><span>프로필 편집</span>
       <span class="muted" style="max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(S.profile.nickname||(u?u.name:'미설정'))}${S.profile.height?` · ${S.profile.height}cm`:''}${S.profile.weight?` · ${S.profile.weight}kg`:''} ›</span></div></div>
     <div class="card"><div style="font-weight:700;margin-bottom:10px">테마</div>
@@ -470,12 +808,7 @@ function renderMy(){
     <div class="card"><div style="font-weight:700;margin-bottom:4px">알림</div>
       ${notifRow('목표 리마인더','goal')}${notifRow('신발 교체 알림','shoe')}${notifRow('푸시 알림','push')}</div>
     <div class="card"><div style="font-weight:700;margin-bottom:4px">개인정보</div>
-      ${notifRowOn('공유 시 시작·종료 위치 가리기',S.privacy.hideEnds,"setPrivacy('hideEnds')")}
-      <div style="margin-top:10px"><span class="muted">활동 공개범위</span></div>
-      <div class="seg" style="margin-top:6px">
-        <button class="${S.privacy.visibility==='private'?'on':''}" onclick="setVisibility('private')">비공개</button>
-        <button class="${S.privacy.visibility==='followers'?'on':''}" onclick="setVisibility('followers')">팔로워</button>
-        <button class="${S.privacy.visibility==='public'?'on':''}" onclick="setVisibility('public')">공개</button></div></div>
+      ${notifRowOn('공유 시 시작·종료 위치 가리기',S.privacy.hideEnds,"setPrivacy('hideEnds')")}</div>
     <div class="card"><div class="row"><span>위치 권한</span><span class="muted">사용 중에만 ›</span></div></div>
     <div class="note">⚠ 이 프로토타입의 모든 데이터(기록·심박·신발)는 이 브라우저 안에만 저장되며 외부로 전송되지 않습니다. 심박수는 시뮬레이션 값입니다.</div>
     <button class="btn ghost" style="margin-top:12px" onclick="resetAll()">데이터 초기화</button>
@@ -510,7 +843,7 @@ function doLogin(method){
   S.user={name,email,via:method}; save();
   const ov=$('#ovLogin'); if(ov)ov.remove(); render(); toast('로그인됐어요 (데모)');
 }
-function logout(){ if(!confirm('로그아웃할까요? (기기에 저장된 기록은 유지됩니다)'))return;
+function logout(){ if(!confirm(L('로그아웃할까요? (기기에 저장된 기록은 유지됩니다)')))return;
   S.user=null; save(); render(); toast('로그아웃됐어요'); }
 function cloudBackup(){ toast('클라우드에 백업했어요 (데모)'); }
 //==================== 개인화 / 설정 ====================
@@ -556,11 +889,22 @@ function startRun(){ // 3·2·1 카운트다운 후 시작
     else { clearInterval(iv); const o=document.getElementById('ovCount'); if(o)o.remove(); beginRun(); }
   },800);
 }
+// 음성 코칭 — 기기 내장 음성합성(Web Speech API), 데이터 전송 없음
+function speak(text){ try{ if(!S.voiceCoach||!('speechSynthesis'in window)||!text)return;
+  const u=new SpeechSynthesisUtterance(text); u.lang=(S.lang==='en')?'en-US':'ko-KR'; u.rate=1;
+  speechSynthesis.cancel(); speechSynthesis.speak(u); }catch(e){} }
+function kmCue(km){ const ps=RUN.dist>0?RUN.elapsed/RUN.dist:0; const m=Math.floor(ps/60),s=Math.round(ps%60),hr=Math.round(RUN.hr);
+  return (S.lang==='en')
+    ? `${km} kilometer${km>1?'s':''}. Average pace ${m} minutes ${s} seconds. Heart rate ${hr}.`
+    : `${km}킬로미터. 평균 페이스 ${m}분 ${s}초. 심박 ${hr}.`; }
 function beginRun(){
-  RUN={t0:Date.now(),elapsed:0,dist:0,hr:120,paused:false,pace:330,cal:0,laps:[],
+  RUN={t0:Date.now(),elapsed:0,dist:0,hr:120,paused:false,pace:330,cal:0,laps:[],lastKm:0,
        base:[126.901,37.556],dir:Math.random()*Math.PI*2,geo:[[126.901,37.556]],
        goal:JSON.parse(JSON.stringify(S.runGoal||{type:'none'})), goalReached:false, autopause:!!S.autopause, view:'full'};
+  if(_planWorkout){ RUN.iv={seq:_planWorkout.seq.slice(),reps:_planWorkout.reps,i:0,t:0}; _planWorkout=null; }
   renderRunning();
+  if(RUN.iv){ ivBannerShow(); ivAnnounce(0,true); }
+  else speak(S.lang==='en'?'Run started.':'러닝을 시작합니다.');
   if(navigator.geolocation) navigator.geolocation.getCurrentPosition(p=>{ if(!RUN)return;
     const b=[p.coords.longitude,p.coords.latitude]; RUN.base=b; if(RUN.geo.length<=1)RUN.geo=[b.slice()];
     if(_liveMap){try{_liveMap.setCenter(b); if(_liveMarker)_liveMarker.setLngLat(b);}catch(e){}} },()=>{},{enableHighAccuracy:true,timeout:6000});
@@ -583,6 +927,12 @@ function tick(){
   const lat=last[1]+(dKm/111)*Math.cos(RUN.dir);
   const lng=last[0]+(dKm/(111*Math.cos(last[1]*Math.PI/180)))*Math.sin(RUN.dir);
   RUN.geo.push([+lng.toFixed(6),+lat.toFixed(6)]);
+  const _km=Math.floor(RUN.dist); if(_km>(RUN.lastKm||0)){ RUN.lastKm=_km; speak(kmCue(_km)); }
+  if(RUN.iv){ RUN.iv.t++; const cur=RUN.iv.seq[RUN.iv.i];
+    if(RUN.iv.t>=cur.sec){ RUN.iv.i++; RUN.iv.t=0;
+      if(RUN.iv.i>=RUN.iv.seq.length){ speak(S.lang==='en'?'Workout complete. Cool down.':'운동 완료! 천천히 마무리하세요.'); RUN.iv=null; ivBannerHide(); }
+      else ivAnnounce(RUN.iv.i,false); }
+    ivBannerUpdate(); }
   checkGoal();
   updateRunning();
 }
@@ -590,7 +940,7 @@ function checkGoal(){ const g=RUN.goal; if(!g||g.type==='none'||RUN.goalReached)
   let done=false;
   if(g.type==='distance') done=RUN.dist>=g.value;
   else if(g.type==='time') done=RUN.elapsed>=g.value;
-  if(done){ RUN.goalReached=true; toast('목표 달성! 🎉'); } }
+  if(done){ RUN.goalReached=true; toast('목표 달성! 🎉'); speak(S.lang==='en'?'Goal reached! Great job.':'목표를 달성했어요! 잘하고 있어요.'); } }
 function goalLabel(g){ if(!g||g.type==='none')return '목표 없음';
   if(g.type==='distance')return `목표 ${(+g.value).toFixed(1)}km`;
   if(g.type==='time')return `목표 ${Math.round(g.value/60)}분`;
@@ -614,6 +964,7 @@ function openGoalSheet(){
     <div class="seg">${seg('none','없음')}${seg('distance','거리')}${seg('time','시간')}${seg('pace','페이스')}</div>
     ${valHtml}
     <div class="card" style="margin-top:16px"><div class="row"><span style="flex:1">자동 일시정지 <span class="muted" style="font-size:11px">(멈추면 자동 정지)</span></span>${switchBtn(S.autopause,'toggleAutopause()')}</div></div>
+    <div class="card"><div class="row"><span style="flex:1">음성 코칭 <span class="muted" style="font-size:11px">(1km마다 음성 안내)</span></span>${switchBtn(S.voiceCoach,'toggleVoice()')}</div></div>
     <button class="btn" style="margin-top:6px" onclick="applyGoal()">적용</button></div>`;
   $('#phone').appendChild(ov);
 }
@@ -624,6 +975,8 @@ function setGoalType(t){ S.runGoal.type=t;
   save(); openGoalSheet(); }
 function parsePace(str){ const m=String(str).split(/[:'\"]/).map(x=>parseInt(x,10)); const sec=(m[0]||5)*60+(m[1]||0); return Math.max(120,Math.min(900,sec)); }
 function toggleAutopause(){ S.autopause=!S.autopause; save(); openGoalSheet(); }
+function toggleVoice(){ S.voiceCoach=!S.voiceCoach; save(); openGoalSheet();
+  if(S.voiceCoach) speak(S.lang==='en'?'Voice coaching on.':'음성 코칭을 켰어요.'); }
 function applyGoal(){ const ov=$('#ovGoal'); if(ov)ov.remove(); render(); toast(S.runGoal.type==='none'?'목표 해제':goalLabel(S.runGoal)+' 설정'); }
 function lineFeature(coords){return {type:'Feature',geometry:{type:'LineString',coordinates:coords}};}
 function svgFromGeo(g){ if(g.length<2)return ''; const xs=g.map(p=>p[0]),ys=g.map(p=>p[1]);
@@ -644,14 +997,23 @@ function setupLiveMap(){
 }
 function fmtClock(sec){ sec=Math.round(sec); const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;
   return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
-function runCtrls2(){ return RUN.paused
-  ? `<button class="btn" style="flex:1" onclick="togglePause()">▶ 재개</button>
-     <button class="btn" style="flex:1;background:#1a1d23" onclick="stopRun()">🏁 종료</button>`
-  : `<button class="btn" style="flex:1" onclick="togglePause()">❚❚ 일시정지</button>`; }
+function runCtrls2(){
+  if(RUN.paused){
+    return `<div style="width:100%;display:flex;justify-content:center;gap:52px">
+      <div style="text-align:center"><button class="startbtn" style="width:72px;height:72px;font-size:26px" onclick="togglePause()">▶</button>
+        <div style="font-size:12px;font-weight:700;color:var(--brand);margin-top:6px">재개</div></div>
+      <div style="text-align:center"><button style="width:72px;height:72px;border-radius:50%;background:#1a1d23;color:#fff;font-size:22px;box-shadow:0 6px 16px rgba(0,0,0,.3)" onclick="stopRun()">■</button>
+        <div style="font-size:12px;font-weight:700;color:var(--ink);margin-top:6px">종료</div></div>
+    </div>`;
+  }
+  return `<div style="width:100%;display:flex;justify-content:center">
+    <div style="text-align:center"><button class="startbtn" style="width:80px;height:80px;font-size:26px" onclick="togglePause()">❚❚</button>
+      <div style="font-size:12px;font-weight:700;color:var(--brand);margin-top:6px">일시정지</div></div>
+  </div>`; }
 // 지도 모드 하단 카드
 function runCardHTML(){ const paused=RUN.paused;
   const header = paused
-    ? `<div style="background:#f5b800;color:#1a1d23;font-weight:800;text-align:center;padding:11px;position:relative">정지됨
+    ? `<div style="background:var(--brand);color:#fff;font-weight:800;text-align:center;padding:11px;position:relative">정지됨
         <span onclick="setRunView('full')" style="position:absolute;right:16px;top:9px;cursor:pointer">⤢</span></div>`
     : `<div style="text-align:center;padding:9px;position:relative;color:var(--sub);font-weight:700"><span class="rec-dot"></span>측정 중
         <span onclick="setRunView('full')" style="position:absolute;right:16px;top:8px;cursor:pointer">⤢</span></div>`;
@@ -676,7 +1038,7 @@ function layoutRun(){
     if(_liveMap){try{_liveMap.remove();}catch(e){}_liveMap=null;}
     const paused=RUN.paused;
     const header = paused
-      ? `<div style="background:#f5b800;color:#1a1d23;text-align:center;padding:16px 0 18px">
+      ? `<div style="background:var(--brand);color:#fff;text-align:center;padding:16px 0 18px">
           <div style="font-weight:800;font-size:15px">정지됨</div><div id="rTime" style="font-size:44px;font-weight:800">${fmtClock(RUN.elapsed)}</div></div>`
       : `<div style="text-align:center;padding:28px 0 4px"><div class="live"><span class="rec-dot"></span>측정 중</div>
           <div id="rTime" style="font-size:52px;font-weight:800;color:var(--ink)">${fmtClock(RUN.elapsed)}</div></div>`;
@@ -719,12 +1081,14 @@ function updateRunning(){
     const last=RUN.geo[RUN.geo.length-1]; if(_liveMarker)_liveMarker.setLngLat(last); if(!RUN.paused)_liveMap.setCenter(last); } }catch(e){} }
 }
 function togglePause(){ RUN.paused=!RUN.paused;
+  if(!RUN.paused && !timer){ timer=setInterval(tick,1000); }   // 재개 시 타이머 복구
   if(RUN.view==='map'){ const c=document.getElementById('runCard'); if(c)c.innerHTML=runCardHTML();
     if(RUN.paused&&_liveMap){try{_liveMap.setCenter(RUN.geo[RUN.geo.length-1]);}catch(e){}} }
   else { layoutRun(); } }
 function stopRun(){
-  clearInterval(timer); timer=null;
-  const r={id:Date.now(),date:'2026-05-30',dist:+RUN.dist.toFixed(2),dur:RUN.elapsed,
+  clearInterval(timer); timer=null; ivBannerHide();
+  const now=new Date();
+  const r={id:Date.now(),date:todayStr(now),at:now.getTime(),dist:+RUN.dist.toFixed(2),dur:RUN.elapsed,
     hr:Math.round(RUN.hr),cal:Math.round(RUN.cal),shoeId:S.defaultShoe,geo:RUN.geo.slice(),laps:RUN.laps.slice()};
   if(_liveMap){try{_liveMap.remove();}catch(e){}_liveMap=null;} _liveMarker=null;
   const mini=document.getElementById('runMini'); if(mini)mini.remove();
@@ -742,36 +1106,83 @@ function lapSummaryHtml(laps){ if(!laps||!laps.length)return '';
     <div class="row" style="font-size:11px;color:var(--sub)"><span style="width:42px">구간</span><span style="flex:1;text-align:center">거리</span><span style="flex:1;text-align:center">시간</span><span style="flex:1;text-align:right">페이스</span></div>
     ${rows}</div>`; }
 function openSummary(r){
-  const ov=document.createElement('div'); ov.className='overlay'; ov.id='ovSum';
-  const renderSel=()=>S.shoes.map(s=>`<option value="${s.id}" ${s.id===r.shoeId?'selected':''}>${s.name}</option>`).join('');
+  const ov=document.createElement('div'); ov.className='overlay'; ov.id='ovSum'; ov.style.padding='0';
+  const renderSel=()=>S.shoes.filter(s=>!s.retired||s.id===r.shoeId)
+    .map(s=>`<option value="${s.id}" ${s.id===r.shoeId?'selected':''}>${sName(s)}${s.retired?' (지난 신발)':''}</option>`).join('');
   ov.innerHTML=`
-    <div class="topbar"><button class="x" onclick="closeSum()">✕</button><b>러닝 완료</b></div>
-    <div class="center"><div style="font-size:30px">🎉</div>
-      <div class="stat-lg brand">${r.dist.toFixed(2)}</div><div class="muted">km</div></div>
-    <div class="card" style="margin-top:16px">
-      <div class="row" style="margin-bottom:8px"><span class="muted">시간</span><b>${fmtDur(r.dur)}</b></div>
-      <div class="row" style="margin-bottom:8px"><span class="muted">평균 페이스</span><b>${pace(r.dist,r.dur)}/km</b></div>
-      <div class="row" style="margin-bottom:8px"><span class="muted">평균 심박</span><b class="hr">❤ ${r.hr} bpm</b></div>
-      <div class="row"><span class="muted">칼로리</span><b>${r.cal} kcal</b></div>
-    </div>
-    ${lapSummaryHtml(r.laps)}
-    <div class="card"><span class="muted">👟 신은 신발 (이 신발에 거리·횟수 적립)</span>
-      <select id="selShoe" style="width:100%;margin-top:8px;padding:10px;border:1px solid var(--line);border-radius:10px;font-size:14px">
-        ${renderSel()}</select></div>
-    <div style="display:flex;gap:10px;margin-top:6px">
-      <button class="btn ghost" onclick="window._shareTmp()" style="flex:1">공유</button>
-      <button class="btn" onclick="window._saveTmp()" style="flex:1">기록 저장</button>
-    </div>
-    <div class="note">심박수는 시뮬레이션 값이며, 기록은 이 브라우저 안에만 저장됩니다.</div>`;
+    <div style="position:absolute;inset:0;display:flex;flex-direction:column">
+      <div class="topbar" style="flex:none;padding:18px 18px 6px">
+        <button onclick="resumeFromSummary()" style="background:none;font-size:15px;font-weight:600;color:var(--ink)">‹ 다시 시작</button>
+        <b style="flex:1;text-align:center">러닝 완료</b><span style="width:72px"></span></div>
+      <div style="flex:1;overflow-y:auto;padding:6px 18px 16px">
+        <div class="center"><div style="font-size:30px">🎉</div>
+          <div class="stat-lg brand">${r.dist.toFixed(2)}</div><div class="muted">km</div></div>
+        <input id="sumTitle" type="text" value="${defaultRunTitle()}" placeholder="활동 제목"
+          style="width:100%;margin-top:16px;padding:13px;border:1px solid var(--line);border-radius:12px;font-size:16px;font-weight:700;background:var(--card);color:var(--ink)">
+        <textarea id="sumNote" rows="2" placeholder="오늘 러닝은 어땠나요? (메모)"
+          style="width:100%;margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:12px;font-size:14px;resize:none;font-family:inherit;background:var(--card);color:var(--ink)"></textarea>
+        <div class="card" style="margin-top:12px">
+          <div class="row" style="margin-bottom:8px"><span class="muted">시간</span><b>${fmtDur(r.dur)}</b></div>
+          <div class="row" style="margin-bottom:8px"><span class="muted">평균 페이스</span><b>${pace(r.dist,r.dur)}/km</b></div>
+          <div class="row" style="margin-bottom:8px"><span class="muted">평균 심박</span><b class="hr">❤ ${r.hr} bpm</b></div>
+          <div class="row"><span class="muted">칼로리</span><b>${r.cal} kcal</b></div>
+        </div>
+        ${lapSummaryHtml(r.laps)}
+        <div class="card"><span class="muted">👟 신은 신발 (이 신발에 거리·횟수 적립)</span>
+          <select id="selShoe" style="width:100%;margin-top:8px;padding:10px;border:1px solid var(--line);border-radius:10px;font-size:14px">
+            ${renderSel()}</select></div>
+        <div class="note">심박수는 시뮬레이션 값이며, 기록은 이 브라우저 안에만 저장됩니다.</div>
+        <button onclick="discardRun()" style="display:block;margin:16px auto 4px;background:none;color:var(--warn);font-size:13px;font-weight:600">저장하지 않고 삭제</button>
+      </div>
+      <div style="flex:none;display:flex;gap:10px;padding:12px 18px 24px;border-top:1px solid var(--line);background:var(--card)">
+        <button class="btn ghost" onclick="window._shareTmp()" style="flex:1">공유</button>
+        <button class="btn" onclick="window._saveTmp()" style="flex:1">기록 저장</button>
+      </div>
+    </div>`;
   $('#phone').appendChild(ov);
-  window._saveTmp=()=>{ r.shoeId=+$('#selShoe').value; commitRun(r); $('#ovSum').remove(); go('log'); toast('기록을 저장했어요 🎉'); };
-  window._shareTmp=()=>{ r.shoeId=+$('#selShoe').value; commitRun(r); $('#ovSum').remove(); openShare(r.id); };
+  const grabMeta=()=>{ r.shoeId=+$('#selShoe').value;
+    const t=document.getElementById('sumTitle'); r.title=(t&&t.value.trim())||defaultRunTitle();
+    const n=document.getElementById('sumNote'); r.note=(n&&n.value.trim())||''; };
+  window._saveTmp=()=>{ grabMeta(); commitRun(r); $('#ovSum').remove(); go('log'); toast('기록을 저장했어요 🎉'); };
+  window._shareTmp=()=>{ grabMeta(); commitRun(r); $('#ovSum').remove(); openShare(r.id); };
 }
+function defaultRunTitle(){ const h=new Date().getHours();
+  return (h<6?'새벽':h<12?'오전':h<18?'오후':'저녁')+' 러닝'; }
 function commitRun(r){
-  if(!S.runs.find(x=>x.id===r.id)){ S.runs.push(r);
-    const sh=shoe(r.shoeId); if(sh){ sh.km+=r.dist; sh.count+=1; } save(); }
+  if(!S.runs.find(x=>x.id===r.id)){
+    const before=levelIdx(totalKm()); S.runs.push(r);
+    const sh=shoe(r.shoeId); if(sh){ sh.km+=r.dist; sh.count+=1; } save();
+    const after=levelIdx(totalKm());
+    if(after>before){ const nm=LEVELS[after][1]; setTimeout(()=>toast('레벨 업! '+nm+' 달성 🎉'),900); }
+    if(_planMark&&S.plan){ S.plan.done[_planMark.wi+'-'+_planMark.di]=true; save(); checkPlanComplete(); } _planMark=null;
+  }
 }
-function closeSum(){ if(confirm('이 기록을 저장하지 않고 닫을까요?')) $('#ovSum').remove(); }
+function closeSum(){ if(confirm(L('이 기록을 저장하지 않고 닫을까요?'))) $('#ovSum').remove(); }
+function resumeFromSummary(){ const ov=document.getElementById('ovSum'); if(ov)ov.remove();
+  if(!RUN){ go('home'); return; }
+  RUN.paused=true; renderRunning(); }   // 직전(측정/정지됨) 화면으로 복귀 → 재개 가능
+function discardRun(){ if(!confirm(L('이 기록을 저장하지 않고 삭제할까요? (되돌릴 수 없어요)')))return;
+  const ov=document.getElementById('ovSum'); if(ov)ov.remove(); RUN=null; _planMark=null; go('home'); toast('기록을 삭제했어요'); }
+function delRun(id){ const r=S.runs.find(x=>x.id===id); if(!r)return;
+  const ov=document.createElement('div'); ov.className='overlay'; ov.id='ovDelRun';
+  ov.style.background='rgba(0,0,0,0.45)'; ov.style.justifyContent='center'; ov.style.padding='24px';
+  ov.onclick=(e)=>{ if(e.target===ov) ov.remove(); };
+  ov.innerHTML=`<div style="background:var(--card);border-radius:18px;padding:20px;width:100%;max-width:340px;margin:auto">
+    <b style="font-size:16px">기록 삭제</b>
+    <div class="muted" style="margin:8px 0 16px;line-height:1.6">이 기록(${r.dist.toFixed(2)}km)을 삭제합니다.<br>신발 누적 거리는 어떻게 할까요?</div>
+    <button class="btn" style="margin-bottom:8px" onclick="doDelRun(${id},true)">기록만 삭제 (신발 거리 유지)</button>
+    <button class="btn ghost" style="margin-bottom:8px" onclick="doDelRun(${id},false)">신발 거리도 함께 차감</button>
+    <button onclick="document.getElementById('ovDelRun').remove()" style="display:block;width:100%;background:none;color:var(--sub);padding:8px">취소</button>
+  </div>`;
+  $('#phone').appendChild(ov);
+}
+function doDelRun(id,keepShoe){
+  const d=document.getElementById('ovDelRun'); if(d)d.remove();
+  const r=S.runs.find(x=>x.id===id); if(!r)return;
+  if(!keepShoe){ const sh=shoe(r.shoeId); if(sh){ sh.km=Math.max(0,sh.km-r.dist); sh.count=Math.max(0,sh.count-1); } }
+  S.runs=S.runs.filter(x=>x.id!==id); save();
+  const ov=document.getElementById('ovDetail'); if(ov)ov.remove(); go('log');
+  toast(keepShoe?'기록 삭제 · 신발 거리 유지':'기록·신발 거리 삭제'); }
 
 //==================== 공유 (SVG 템플릿 + Share to) ====================
 // ▼▼▼ 직접 만든 템플릿을 여기에 추가하세요 ▼▼▼
@@ -810,7 +1221,7 @@ const SVG_TEMPLATES=[
 // ▲▲▲ 여기까지 ▲▲▲
 let _shareRun=null, _shareIdx=0;
 function routePathSVG(run,bx,by,bw,bh,color,lw){
-  const pts=geoRoute(run), xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]);
+  const pts=trimRouteEnds(geoRoute(run)), xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]);
   const minx=Math.min(...xs),maxx=Math.max(...xs),miny=Math.min(...ys),maxy=Math.max(...ys);
   const w=(maxx-minx)||1,h=(maxy-miny)||1, sc=Math.min(bw/w,bh/h);
   const ox=bx+(bw-w*sc)/2, oy=by+(bh-h*sc)/2;
@@ -842,29 +1253,35 @@ function openShare(runId){
   _shareRun=r; _shareIdx=0;
   const ov=document.createElement('div'); ov.className='overlay'; ov.id='ovShare'; ov.style.padding='0';
   ov.innerHTML=`
-    <div class="topbar" style="padding:18px 18px 4px"><button class="x" onclick="document.getElementById('ovShare').remove()">✕</button>
-      <b style="flex:1;text-align:center">기록 공유</b><span style="width:22px"></span></div>
-    <div style="text-align:center;font-size:12px;color:var(--sub);margin-bottom:6px">좌우로 넘겨 템플릿 선택 · 배경 투명 PNG</div>
-    <div id="shareCar" style="flex:none;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:14px;padding:6px 36px;-webkit-overflow-scrolling:touch">
-      ${SVG_TEMPLATES.map((t,i)=>`<div class="checker" style="flex:0 0 72%;scroll-snap-align:center;border-radius:16px;border:1px solid var(--line);overflow:hidden;aspect-ratio:600/800">
-        <img id="simg_${i}" style="width:100%;display:block" alt="${t.name}"/></div>`).join('')}
-    </div>
-    <div id="shareDots" style="text-align:center;margin:12px 0 4px">${SVG_TEMPLATES.map((_,i)=>`<span style="display:inline-block;width:7px;height:7px;border-radius:50%;margin:0 3px;background:${i===0?'var(--brand)':'#cfd3da'}"></span>`).join('')}</div>
-    <div style="font-weight:700;margin:10px 18px 10px">Share to</div>
-    <div style="display:flex;gap:10px;padding:0 18px 20px;overflow-x:auto">
-      ${shareBtn('📷','인스타그램','shareSystem()',true)}
-      ${shareBtn('⬇️','저장','shareSave()')}
-      ${shareBtn('📋','클립보드','shareClipboard()')}
-      ${shareBtn('⤴︎','더보기','shareSystem()')}
-    </div>
-    <div class="note" style="margin:0 18px 24px">웹에서는 인스타그램에 자동 게시가 안 돼요. '인스타그램/더보기'를 누르면 기기의 공유 메뉴가 열려 인스타그램·메시지 등으로 보낼 수 있고(모바일), '저장'으로 받은 투명 PNG를 인스타 스토리에서 사진 위에 직접 올려도 됩니다.</div>`;
+    <div style="position:absolute;inset:0;display:flex;flex-direction:column">
+      <div class="topbar" style="flex:none;padding:18px 18px 2px"><button class="x" onclick="document.getElementById('ovShare').remove()">✕</button>
+        <b style="flex:1;text-align:center">기록 공유</b><span style="width:22px"></span></div>
+      <div style="flex:none;text-align:center;font-size:12px;color:var(--sub);padding:0 18px 8px">템플릿을 선택하세요 · 배경 투명 PNG</div>
+      <div style="flex:1;overflow-y:auto;padding:4px 18px 14px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          ${SVG_TEMPLATES.map((t,i)=>`<div id="stpl_${i}" onclick="selectShareTpl(${i})" class="checker" style="position:relative;border-radius:14px;overflow:hidden;aspect-ratio:600/800;border:2px solid ${i===0?'var(--brand)':'transparent'};cursor:pointer">
+            <img id="simg_${i}" style="width:100%;display:block" alt="${t.name}"/>
+            <span id="stplchk_${i}" style="position:absolute;top:7px;right:7px;width:20px;height:20px;border-radius:50%;background:var(--brand);color:#fff;font-size:12px;font-weight:700;display:${i===0?'flex':'none'};align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.3)">✓</span>
+            <span style="position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.45);color:#fff;font-size:10px;text-align:center;padding:3px 0">${t.name}</span></div>`).join('')}
+        </div>
+      </div>
+      <div style="flex:none;border-top:1px solid var(--line);background:var(--bg)">
+        <div style="font-weight:700;margin:12px 18px 8px;font-size:13px">선택한 템플릿으로 공유</div>
+        <div style="display:flex;gap:10px;padding:0 18px 14px;overflow-x:auto">
+          ${shareBtn('📷','인스타그램','shareSystem()',true)}
+          ${shareBtn('⬇️','저장','shareSave()')}
+          ${shareBtn('📋','클립보드','shareClipboard()')}
+          ${shareBtn('⤴︎','더보기','shareSystem()')}
+        </div>
+        <div class="note" style="margin:0 18px 18px">웹에서는 인스타그램에 자동 게시가 안 돼요. '인스타그램/더보기'를 누르면 기기 공유 메뉴가 열리고(모바일), '저장'으로 받은 투명 PNG를 인스타 스토리 사진 위에 올려도 됩니다.</div>
+      </div>
+    </div>`;
   $('#phone').appendChild(ov);
   SVG_TEMPLATES.forEach((t,i)=>{ svgToPng(fillTemplate(t.svg,r),(durl)=>{ const im=document.getElementById('simg_'+i); if(im&&durl)im.src=durl; }); });
-  const car=$('#shareCar');
-  car.addEventListener('scroll',()=>{ const cw=car.firstElementChild.offsetWidth+14;
-    const i=Math.max(0,Math.min(SVG_TEMPLATES.length-1,Math.round(car.scrollLeft/cw)));
-    if(i!==_shareIdx){ _shareIdx=i; document.querySelectorAll('#shareDots span').forEach((d,j)=>d.style.background=j===i?'var(--brand)':'#cfd3da'); } });
 }
+function selectShareTpl(i){ _shareIdx=i;
+  SVG_TEMPLATES.forEach((t,j)=>{ const c=document.getElementById('stpl_'+j), k=document.getElementById('stplchk_'+j);
+    if(c)c.style.borderColor=(j===i)?'var(--brand)':'transparent'; if(k)k.style.display=(j===i)?'flex':'none'; }); }
 function shareBtn(icon,label,onclick,hot){
   return `<button onclick="${onclick}" style="background:none;text-align:center;flex:0 0 auto;width:74px">
     <span style="display:flex;width:58px;height:58px;border-radius:50%;align-items:center;justify-content:center;margin:0 auto;background:${hot?'#fff0ec':'#eef1f5'};font-size:24px">${icon}</span>
@@ -881,7 +1298,7 @@ function shareClipboard(){ curShareBlob(async(blob)=>{ if(!blob)return;
   try{ await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]); toast('클립보드에 복사됐어요'); }
   catch(e){ toast('이 브라우저는 클립보드 복사 미지원 — 저장을 이용하세요'); } }); }
 function drawRouteOnCanvas(x,run,bx,by,bw,bh,color,lw){
-  const r=geoRoute(run); const xs=r.map(p=>p[0]),ys=r.map(p=>p[1]);
+  const r=trimRouteEnds(geoRoute(run)); const xs=r.map(p=>p[0]),ys=r.map(p=>p[1]);
   const minx=Math.min(...xs),maxx=Math.max(...xs),miny=Math.min(...ys),maxy=Math.max(...ys);
   const w=(maxx-minx)||1,h=(maxy-miny)||1, sc=Math.min(bw/w,bh/h);
   const ox=bx+(bw-w*sc)/2, oy=by+(bh-h*sc)/2;
@@ -978,6 +1395,15 @@ function routeSVG(r){ let pts=r.pts;
     <path d="${d}" stroke="#ff5a3c" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
     <circle cx="${st[0]}" cy="${st[1]}" r="7" fill="#16a34a" stroke="#fff" stroke-width="2"/>
     <circle cx="${en[0]}" cy="${en[1]}" r="7" fill="#1a1d23" stroke="#fff" stroke-width="2"/></svg>`;}
+// 공유 시 개인정보 보호: 경로 앞뒤 일부를 잘라 출발·도착(집) 위치를 가린다.
+// S.privacy.hideEnds 가 켜져 있을 때만 동작하며, 공유 이미지에만 적용된다.
+function trimRouteEnds(pts){
+  if(!S.privacy || !S.privacy.hideEnds) return pts;      // 토글 꺼짐 → 원본 그대로
+  if(!pts || pts.length < 7) return pts;                 // 점이 너무 적으면 보호 불가 → 그대로
+  const cut=Math.max(1,Math.floor(pts.length*0.12));     // 양 끝 각각 약 12%
+  const out=pts.slice(cut, pts.length-cut);
+  return out.length>=2 ? out : pts;                      // 안전장치: 최소 2점 유지
+}
 // 가상 GPS 경로(좌표) 생성 — run.id 기반으로 항상 동일한 모양
 function geoRoute(run){
   if(run.geo && run.geo.length>2) return run.geo;   // 실제로 측정한 경로가 있으면 사용
@@ -1032,8 +1458,8 @@ function chartBlock(title,svg,rows){return `<div class="card"><b style="font-siz
 function openDetail(runId){
   const r=S.runs.find(x=>x.id===runId); if(!r)return;
   const d=detailData(r); const sh=shoe(r.shoeId);
-  const dt=new Date(r.date); const hour=8;
-  const title=(hour<12?'아침 러닝':hour<18?'오후 러닝':'저녁 러닝');
+  const dt=new Date(r.at||r.date); const hour=r.at?dt.getHours():8;
+  const title=r.title||(hour<12?'아침 러닝':hour<18?'오후 러닝':'저녁 러닝');
   const splitRows=()=>{ const maxSp=Math.max(...d.splits.map(s=>1/s.paceSec));
     return d.splits.map(s=>{const bw=(1/s.paceSec)/maxSp*100;
       return `<div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:5px 0">
@@ -1049,7 +1475,8 @@ function openDetail(runId){
       <button class="x" onclick="openShare(${r.id})" title="공유">⬆</button></div>
     ${(typeof maplibregl!=='undefined')?'<div id="detmap" style="flex:none;height:240px;width:100%;border-radius:14px;overflow:hidden;background:#e9eef2"></div>':routeSVG(r)}
     <h1 style="margin:16px 0 2px">${title}</h1>
-    <div class="muted">👟 ${dt.getMonth()+1}월 ${dt.getDate()}일 · 오전 8:33 · 시뮬레이션 경로</div>
+    <div class="muted">📅 ${dt.getMonth()+1}월 ${dt.getDate()}일 · ${r.at?fmtTime(dt):'오전 8:33'} · 시뮬레이션 경로</div>
+    ${r.note?`<div class="card" style="margin-top:12px;font-size:14px;line-height:1.6">${r.note.replace(/</g,'&lt;')}</div>`:''}
     <div class="card" style="margin-top:14px">${metricGrid([
       ['거리',r.dist.toFixed(2)+' km'],['평균 페이스',pace(r.dist,r.dur)+' /km'],
       ['이동 시간',fmtDur(r.dur)],['고도 상승',d.elevGain+' m'],
@@ -1074,10 +1501,11 @@ function openDetail(runId){
     ${chartBlock('고도 (Elevation)', svgArea(d.elevS,'#9aa0ab',false), [
       ['고도 상승',d.elevGain+' m'],['최고 고도',d.maxElev+' m']])}
 
-    <div class="card"><div class="row"><span class="muted">👟 신발</span><b>${sh?sh.name:'-'}</b></div>
+    <div class="card"><div class="row"><span class="muted">👟 신발</span><b>${sh?sName(sh):'삭제된 신발'}</b></div>
       <div class="row" style="margin-top:8px"><span class="muted">기록 방식</span><b>시뮬레이션 데이터</b></div></div>
     <div class="note">심박·파워·고도·구간 데이터는 데모용 시뮬레이션 값입니다. 실제 측정에는 GPS·심박 센서(워치 등)가 필요합니다.</div>
-    <button class="btn" style="margin-top:12px" onclick="openShare(${r.id})">공유</button>`;
+    <button class="btn" style="margin-top:12px" onclick="openShare(${r.id})">공유</button>
+    <button onclick="delRun(${r.id})" style="display:block;margin:14px auto 8px;background:none;color:var(--warn);font-size:13px;font-weight:600">이 기록 삭제</button>`;
   $('#phone').appendChild(ov);
   ov.scrollTop=0;
   if(typeof maplibregl!=='undefined') setTimeout(()=>drawRouteMap('detmap',r,true),0);
@@ -1085,46 +1513,79 @@ function openDetail(runId){
 
 //==================== 신발 추가/관리 ====================
 const BRANDS={
-  '나이키':['페가수스 40','보메로 17','인피니티 런 4'],
-  '아디다스':['울트라부스트','아디제로','슈퍼노바'],
-  '아식스':['카야노 31','님버스 26','GT-2000'],
-  '호카':['클리프톤 9','본디 8','마하 6'],
-  '뉴발란스':['1080v13','880v14','페이서'],
-  '브룩스':['고스트 16','글리세린 21','아드레날린'],
+  '나이키':['페가수스 42','페가수스 41','페가수스 플러스','페가수스 프리미엄','보메로 18','보메로 플러스','보메로 프리미엄','스트럭처 26','인빈서블 3','인피니티 런 4','줌플라이 6','베이퍼플라이 4','베이퍼플라이 3','알파플라이 3','스트릭플라이 2','페가수스 트레일 5','울트라플라이'],
+  '아디다스':['아디제로 EVO SL','아디제로 보스턴 13','아디제로 아디오스 프로 4','아디제로 아디오스 9','아디제로 SL2','아디제로 SL','울트라부스트 5','울트라부스트 5X','울트라부스트 라이트','슈퍼노바 라이즈 2','슈퍼노바 라이즈','솔라글라이드 7','솔라부스트 6'],
+  '아식스':['노바블라스트 5','슈퍼블라스트 2','젤님버스 27','젤카야노 32','젤커뮬러스 27','GT-2000 13','매직스피드 4','메타스피드 스카이 파리','메타스피드 엣지 파리','메타스피드 레이','메가블라스트','젤펄스 16'],
+  '호카':['클리프톤 10','본디 9','마하 6','스카이플로우','시엘로 X1','아라히 7','로켓 X2','스피드고트 6','마파테 X','킨번 4'],
+  '뉴발란스':['프레시폼 X 1080 v14','퓨얼셀 슈퍼콤프 엘리트 v4','퓨얼셀 슈퍼콤프 트레이너 v3','퓨얼셀 리벨 v4','880 v15','860 v14','모어 v5','프레시폼 X 발로스 v3'],
+  '브룩스':['고스트 17','고스트 맥스 2','글리세린 22','글리세린 맥스','아드레날린 GTS 24','하이페리온 맥스 2','하이페리온 엘리트 4','론치 11','카스카디아 18'],
+  '사우코니':['엔돌핀 스피드 4','엔돌핀 프로 4','엔돌핀 엘리트','라이드 18','트라이엄프 23','킨바라 15','템퍼스','페레그린 15'],
+  '미즈노':['웨이브 라이더 29','웨이브 인스파이어 21','웨이브 리벨리온 프로 3','웨이브 네오 비스타 2','웨이브 스카이 8'],
+  '온(On)':['클라우드몬스터 2','클라우드서퍼 2','클라우드붐 스트라이크','클라우드이클립스','클라우드플로우 4','클라우드러너 2'],
+  '푸마':['디비에이트 닛로 3','벨로시티 닛로 4','포에버런 닛로 2','패스트-R 닛로 엘리트 3','마젠맥스 닛로'],
+  '알트라':['토린 8','에스컬란테 4','프로비전 8','론 피크 9'],
 };
-function openShoeAdd(){
-  let brand='나이키';
-  const ov=document.createElement('div'); ov.className='overlay'; ov.id='ovShoe';
-  const draw=()=>{ ov.querySelector('#models').innerHTML=
-      BRANDS[brand].map(m=>`<div class="card" style="margin-bottom:8px" onclick="addShoe('${brand} ${m}',600,readStartKm())">
-        <div class="row"><span>${m}</span><span class="brand" style="font-weight:700">선택</span></div></div>`).join('');
-    ov.querySelectorAll('#brands .chip').forEach(c=>c.classList.toggle('on',c.dataset.b===brand)); };
+function sName(s){ return s ? (s.nick && s.nick.trim() ? s.nick : s.name) : ''; }
+let _shoeAdd={step:'brand',brand:'',model:'',q:''};
+function openShoeAdd(){ _shoeAdd={step:'brand',brand:'',model:'',q:''};
+  const ov=document.createElement('div'); ov.className='overlay'; ov.id='ovShoe'; ov.style.padding='0';
+  $('#phone').appendChild(ov); renderShoeAdd(); }
+function setAddBrand(b){ _shoeAdd.brand=b; _shoeAdd.step='model'; _shoeAdd.q=''; renderShoeAdd(); }
+function setAddModel(m){ _shoeAdd.model=m; _shoeAdd.step='detail'; renderShoeAdd(); }
+function shoeAddBack(){ if(_shoeAdd.step==='detail')_shoeAdd.step='model';
+  else if(_shoeAdd.step==='model'){_shoeAdd.step='brand'; _shoeAdd.q='';} renderShoeAdd(); }
+function shoeAddSearch(v){ _shoeAdd.q=v; renderShoeAddList(); }
+function renderShoeAddList(){ const el=document.getElementById('saList'); if(!el)return;
+  const q=(_shoeAdd.q||'').toLowerCase();
+  if(_shoeAdd.step==='model'){
+    const list=BRANDS[_shoeAdd.brand].filter(m=>m.toLowerCase().includes(q));
+    el.innerHTML=list.map(m=>`<div class="card" style="margin-bottom:8px" onclick="setAddModel('${m}')"><div class="row"><span>${m}</span><span class="brand" style="font-weight:700">선택 ›</span></div></div>`).join('')||'<div class="muted" style="padding:24px;text-align:center">검색 결과가 없어요</div>';
+  } else {
+    const list=Object.keys(BRANDS).filter(b=>b.toLowerCase().includes(q));
+    el.innerHTML=list.map(b=>`<div class="card" style="margin-bottom:8px" onclick="setAddBrand('${b}')"><div class="row"><b>${b}</b><span class="muted">›</span></div></div>`).join('')||'<div class="muted" style="padding:24px;text-align:center">검색 결과가 없어요</div>';
+  } }
+function renderShoeAdd(){ const ov=document.getElementById('ovShoe'); if(!ov)return;
+  const st=_shoeAdd.step;
+  if(st==='detail'){
+    const product=`${_shoeAdd.brand} ${_shoeAdd.model}`;
+    ov.innerHTML=`
+      <div class="topbar" style="padding:18px 18px 6px"><button class="x" onclick="shoeAddBack()">‹</button><b style="flex:1;text-align:center">신발 추가</b><span style="width:22px"></span></div>
+      <div style="flex:1;overflow-y:auto;padding:8px 18px 90px">
+        <div style="text-align:center;font-weight:800;font-size:18px;margin:18px 0 22px">${product}</div>
+        <div class="card"><div class="muted" style="font-size:12px;margin-bottom:4px">닉네임 <span style="font-size:11px">(선택 · 비우면 제품명으로 표시)</span></div>
+          <input id="saNick" type="text" placeholder="예: 출퇴근화, 대회용" style="width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;font-size:15px;background:var(--card);color:var(--ink)"></div>
+        <div class="card"><div class="row"><span>이미 뛴 거리 <span class="muted" style="font-size:11px">(선택)</span></span><span style="white-space:nowrap"><input id="saBase" type="number" min="0" step="1" value="0" style="width:74px;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:14px;text-align:right;background:var(--card);color:var(--ink)"> km</span></div></div>
+        <div class="card"><div class="row"><span>목표 수명 <span class="muted" style="font-size:11px">(교체 알림 기준)</span></span><span style="white-space:nowrap"><input id="saMax" type="number" min="50" step="50" value="600" style="width:74px;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:14px;text-align:right;background:var(--card);color:var(--ink)"> km</span></div></div>
+        <div class="note">사진 대신 제품명으로 등록돼요. 닉네임을 넣으면 기록·목록에 닉네임이, 비우면 제품명이 표시됩니다.</div>
+      </div>
+      <button class="btn" style="position:absolute;left:18px;right:18px;bottom:24px" onclick="saveNewShoe()">신발 저장</button>`;
+    return;
+  }
+  const back = st==='model' ? `<button class="x" onclick="shoeAddBack()">‹</button>` : `<button class="x" onclick="document.getElementById('ovShoe').remove()">✕</button>`;
+  const ph = st==='model' ? `${_shoeAdd.brand} 모델 검색` : '브랜드 검색';
   ov.innerHTML=`
-    <div class="topbar"><button class="x" onclick="document.getElementById('ovShoe').remove()">✕</button><b>신발 추가</b></div>
-    <div class="card"><div class="row"><span class="muted">이미 뛴 거리 <span style="font-size:11px">(이전에 신던 신발이면 입력)</span></span>
-      <span style="white-space:nowrap"><input id="startKm" type="number" min="0" step="1" value="0"
-        style="width:64px;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:14px;text-align:right"> km</span></div></div>
-    <div class="muted" style="margin-bottom:6px">1. 브랜드 선택</div>
-    <div id="brands">${Object.keys(BRANDS).map(b=>`<button class="chip" data-b="${b}" onclick="window._pickBrand('${b}')">${b}</button>`).join('')}</div>
-    <div class="muted" style="margin:14px 0 6px">2. 모델 선택</div>
-    <div id="models"></div>
-    <div class="card" style="border:1.5px dashed var(--brand);background:#fff0ec;text-align:center" onclick="addShoeManual()">
-      <b class="brand">+ 목록에 없어요 (직접 입력)</b>
-      <div class="muted" style="margin-top:4px">신발 이름·목표 수명(km)을 직접 등록</div></div>
-    <div class="note">제품 이미지는 저작권 문제로 사용하지 않고, 브랜드·모델명 텍스트만 등록합니다.</div>`;
-  $('#phone').appendChild(ov);
-  window._pickBrand=(b)=>{brand=b;draw();};
-  draw();
+    <div class="topbar" style="padding:18px 18px 6px">${back}<b style="flex:1;text-align:center">신발 추가</b><span style="width:22px"></span></div>
+    <div style="padding:0 18px 10px"><input id="saSearch" type="text" oninput="shoeAddSearch(this.value)" placeholder="🔍 ${ph}" value="${(_shoeAdd.q||'').replace(/"/g,'&quot;')}" style="width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:999px;font-size:15px;background:var(--card);color:var(--ink)"></div>
+    <div style="flex:1;overflow-y:auto;padding:0 18px 20px">
+      <div class="muted" style="margin:6px 0 6px;font-weight:600">${st==='model'?'모델 선택':'브랜드 선택'}</div>
+      <div id="saList"></div>
+      <div onclick="addShoeManual()" style="text-align:center;color:var(--brand);font-weight:700;padding:16px;cursor:pointer">+ 목록에 없어요 (직접 입력)</div>
+    </div>`;
+  renderShoeAddList();
 }
-function readStartKm(){ const el=document.getElementById('startKm'); return el?Math.max(0,parseFloat(el.value)||0):0; }
-function addShoe(name,max=600,startKm=0){
-  S.shoes.push({id:Date.now(),name,km:Math.max(0,startKm),count:0,max}); save();
+function saveNewShoe(){
+  const product=`${_shoeAdd.brand} ${_shoeAdd.model}`;
+  const nick=(document.getElementById('saNick').value||'').trim();
+  const base=Math.max(0,parseFloat(document.getElementById('saBase').value)||0);
+  const max=Math.max(50,parseInt(document.getElementById('saMax').value,10)||600);
+  S.shoes.push({id:Date.now(),name:product,nick,km:base,count:0,max}); save();
   const ov=$('#ovShoe'); if(ov)ov.remove(); go('shoe'); toast('신발을 추가했어요');
 }
 function addShoeManual(){
-  const name=prompt('신발 이름을 입력하세요 (예: 나이키 인빈서블 3)'); if(!name)return;
-  const max=parseInt(prompt('목표 수명(km)을 입력하세요','600'),10)||600;
-  addShoe(name.trim(),max,readStartKm());
+  const name=prompt(L('신발 제품명을 입력하세요 (예: 나이키 인빈서블 3)')); if(!name)return;
+  const max=parseInt(prompt(L('목표 수명(km)을 입력하세요'),'600'),10)||600;
+  S.shoes.push({id:Date.now(),name:name.trim(),nick:'',km:0,count:0,max}); save();
+  const ov=$('#ovShoe'); if(ov)ov.remove(); go('shoe'); toast('신발을 추가했어요');
 }
 function setDefaultShoe(id){ S.defaultShoe=id; save(); render(); toast('기본 신발로 설정했어요'); }
 function openShoePicker(){
@@ -1134,40 +1595,79 @@ function openShoePicker(){
   ov.innerHTML=`<div style="background:#fff;border-radius:20px 20px 0 0;padding:18px 16px 24px;max-height:72%;overflow:auto">
     <div class="row" style="margin-bottom:12px"><b>신을 신발 선택</b>
       <button class="x" onclick="document.getElementById('ovPicker').remove()">✕</button></div>
-    ${S.shoes.map(s=>`<div class="card" style="${S.defaultShoe===s.id?'border-color:var(--brand);background:#fff0ec':''}" onclick="pickRunShoe(${s.id})">
-      <div class="row"><span><span class="shoe-emoji">👟</span><b>${s.name}</b></span>
+    ${S.shoes.filter(s=>!s.retired).map(s=>`<div class="card" style="${S.defaultShoe===s.id?'border-color:var(--brand);background:#fff0ec':''}" onclick="pickRunShoe(${s.id})">
+      <div class="row"><span><span class="shoe-emoji">👟</span><b>${sName(s)}</b></span>
         ${S.defaultShoe===s.id?'<span class="brand" style="font-weight:700">✓ 현재</span>':''}</div>
-      <div class="muted" style="margin-top:4px">${s.km.toFixed(0)}km · ${s.count}회</div></div>`).join('')}
+      <div class="muted" style="margin-top:4px">${s.km.toFixed(0)}km · ${s.count}회</div></div>`).join('')||'<div class="muted" style="padding:18px;text-align:center">사용 중인 신발이 없어요. 새로 등록해 주세요.</div>'}
     <button class="btn ghost" onclick="document.getElementById('ovPicker').remove();openShoeAdd()">+ 새 신발 등록</button></div>`;
   $('#phone').appendChild(ov);
 }
 function pickRunShoe(id){ S.defaultShoe=id; save(); const ov=$('#ovPicker'); if(ov)ov.remove(); render(); const s=shoe(id); toast((s?s.name:'신발')+' 선택'); }
-function delShoe(id){ if(!confirm('이 신발을 삭제할까요? (기록은 유지됩니다)'))return;
-  S.shoes=S.shoes.filter(s=>s.id!==id); if(S.defaultShoe===id)S.defaultShoe=S.shoes[0]?.id; save(); render(); toast('삭제했어요'); }
+function delShoe(id){ if(!confirm(L('이 신발을 삭제할까요? (기록은 유지됩니다)')))return;
+  S.shoes=S.shoes.filter(s=>s.id!==id);
+  if(S.defaultShoe===id)S.defaultShoe=(S.shoes.find(s=>!s.retired)||S.shoes[0])?.id;
+  save(); render(); toast('삭제했어요'); }
+// 은퇴: 기록·누적은 그대로 보관하고 신발 선택 목록에서만 숨긴다
+function retireShoe(id){ const s=shoe(id); if(!s)return;
+  if(!confirm(S.lang==='en'?`Move '${sName(s)}' to past shoes?\nMileage & runs are kept; it's only hidden from new-run shoe selection. You can restore it anytime.`:`'${sName(s)}'을(를) 지난 신발로 보낼까요?\n누적 거리·기록은 그대로 보관되고, 새 러닝의 신발 선택 목록에서만 숨겨져요. 언제든 되살릴 수 있어요.`))return;
+  s.retired=true;
+  if(S.defaultShoe===id){ const first=S.shoes.find(x=>!x.retired); S.defaultShoe=first?first.id:undefined; }
+  save(); render(); toast('지난 신발로 옮겼어요'); }
+function restoreShoe(id){ const s=shoe(id); if(!s)return; s.retired=false;
+  if(S.defaultShoe===undefined||shoe(S.defaultShoe)===undefined||shoe(S.defaultShoe).retired) S.defaultShoe=id;
+  save(); render(); toast('다시 사용 중으로 옮겼어요'); }
+function infoPopup(title,html){ const ov=document.createElement('div'); ov.className='overlay'; ov.id='ovInfo';
+  ov.style.background='rgba(0,0,0,0.45)'; ov.style.justifyContent='center'; ov.style.padding='24px';
+  ov.onclick=(e)=>{ if(e.target===ov) ov.remove(); };
+  ov.innerHTML=`<div style="background:var(--card);border-radius:18px;padding:20px;width:100%;max-width:340px;margin:auto">
+    <b style="font-size:16px">${title}</b>
+    <div class="muted" style="margin:10px 0 16px;line-height:1.75;font-size:13.5px">${html}</div>
+    <button class="btn" onclick="document.getElementById('ovInfo').remove()">확인</button></div>`;
+  $('#phone').appendChild(ov); }
+function shoeMileageInfo(){ infoPopup('누적 거리 계산 방식',
+  '· 화면에는 보기 쉽게 <b>1km 단위</b>로 표시해요.<br>· 실제로는 <b>1m(0.001km)까지 정밀하게 저장</b>되고 러닝마다 합산됩니다.<br>· 그래서 짧은 러닝은 숫자가 그대로인 듯 보여도 <b>여러 번 쌓이면 반영</b>돼요.<br>· 기록을 추가·삭제하면 누적이 <b>자동 계산</b>되고, 직접 수정은 \"초기값\"으로만 보정합니다.'); }
+function shoeRunKm(id){ return S.runs.filter(r=>r.shoeId===id).reduce((a,r)=>a+r.dist,0); }
+function shoeRunCount(id){ return S.runs.filter(r=>r.shoeId===id).length; }
 function editShoe(id){ const s=shoe(id); if(!s)return;
+  const runKm=shoeRunKm(id), runCnt=shoeRunCount(id);
+  const baseKm=Math.max(0, s.km-runKm), baseCnt=Math.max(0, s.count-runCnt);
   const ov=document.createElement('div'); ov.className='overlay'; ov.id='ovEdit';
   ov.style.background='rgba(0,0,0,0.4)'; ov.style.justifyContent='flex-end'; ov.style.padding='0';
   ov.onclick=(e)=>{ if(e.target===ov) ov.remove(); };
   const inp='style="width:74px;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:14px;text-align:right"';
-  ov.innerHTML=`<div style="background:#fff;border-radius:20px 20px 0 0;padding:18px 16px 24px;max-height:82%;overflow:auto">
-    <div class="row" style="margin-bottom:12px"><b>신발 수정</b><button class="x" onclick="document.getElementById('ovEdit').remove()">✕</button></div>
-    <div class="card"><div class="muted" style="margin-bottom:6px">신발 이름</div>
-      <input id="eName" type="text" value="${s.name.replace(/"/g,'&quot;')}" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;font-size:14px"></div>
-    <div class="card"><div class="row"><span class="muted">누적 거리</span><span><input id="eKm" type="number" min="0" step="1" value="${s.km.toFixed(0)}" ${inp}> km</span></div></div>
-    <div class="card"><div class="row"><span class="muted">누적 횟수</span><span><input id="eCnt" type="number" min="0" step="1" value="${s.count}" ${inp}> 회</span></div></div>
-    <div class="card"><div class="row"><span class="muted">목표 수명</span><span><input id="eMax" type="number" min="50" step="50" value="${s.max}" ${inp}> km</span></div></div>
-    <button class="btn" onclick="saveShoeEdit(${id})">저장</button></div>`;
+  ov.innerHTML=`<div style="background:var(--card);border-radius:20px 20px 0 0;max-height:82%;display:flex;flex-direction:column">
+    <div class="row" style="flex:none;padding:18px 16px 12px"><b>신발 수정</b><button class="x" onclick="document.getElementById('ovEdit').remove()">✕</button></div>
+    <div style="flex:1;overflow-y:auto;padding:0 16px 16px">
+      <div class="card"><div class="row"><span class="muted">제품</span><b>${s.name}</b></div></div>
+      <div class="card"><div class="muted" style="margin-bottom:6px">닉네임 <span style="font-size:11px">(비우면 제품명으로 표시)</span></div>
+        <input id="eNick" type="text" value="${(s.nick||'').replace(/"/g,'&quot;')}" placeholder="${s.name.replace(/"/g,'&quot;')}" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;font-size:14px;background:var(--card);color:var(--ink)"></div>
+      <div class="card"><div class="row"><span>현재 누적 <span onclick="shoeMileageInfo()" style="display:inline-flex;width:18px;height:18px;border-radius:50%;background:var(--line);color:var(--sub);align-items:center;justify-content:center;font-size:11px;font-weight:700;margin-left:4px;cursor:pointer;vertical-align:middle">?</span></span><b>${s.km.toFixed(0)} km · ${s.count}회</b></div>
+        <div class="muted" style="font-size:11px;margin-top:4px">러닝 기록이 자동 반영돼요. 직접 못 고칩니다.</div></div>
+      <div class="card"><div class="row"><span class="muted">앱 쓰기 전 거리(초기)</span><span><input id="eBaseKm" type="number" min="0" step="1" value="${baseKm.toFixed(0)}" ${inp}> km</span></div></div>
+      <div class="card"><div class="row"><span class="muted">앱 쓰기 전 횟수(초기)</span><span><input id="eBaseCnt" type="number" min="0" step="1" value="${baseCnt}" ${inp}> 회</span></div></div>
+      <div class="card"><div class="row"><span class="muted">목표 수명</span><span><input id="eMax" type="number" min="50" step="50" value="${s.max}" ${inp}> km</span></div></div>
+      <button class="btn ghost" style="margin-top:6px;width:100%" onclick="retireFromEdit(${id})">📥 이 신발 은퇴 (지난 신발로 보관)</button>
+      <div class="muted" style="font-size:11px;text-align:center;margin-top:6px;line-height:1.5">은퇴해도 거리·기록은 그대로 보관돼요. 새 러닝 신발 선택에서만 숨겨집니다.</div>
+      <button class="btn ghost" style="margin-top:14px;width:100%;color:var(--warn)" onclick="delFromEdit(${id})">🗑 이 신발 삭제</button>
+    </div>
+    <div style="flex:none;padding:12px 16px 24px;border-top:1px solid var(--line);background:var(--card)">
+      <button class="btn" style="width:100%" onclick="saveShoeEdit(${id})">저장</button>
+    </div></div>`;
   $('#phone').appendChild(ov);
 }
+function retireFromEdit(id){ const ov=$('#ovEdit'); if(ov)ov.remove(); retireShoe(id); }
+function delFromEdit(id){ const ov=$('#ovEdit'); if(ov)ov.remove(); delShoe(id); }
 function saveShoeEdit(id){ const s=shoe(id); if(!s)return;
-  const name=(document.getElementById('eName').value||'').trim(); if(name)s.name=name;
-  s.km=Math.max(0,parseFloat(document.getElementById('eKm').value)||0);
-  s.count=Math.max(0,parseInt(document.getElementById('eCnt').value,10)||0);
+  s.nick=(document.getElementById('eNick').value||'').trim();
+  const baseKm=Math.max(0,parseFloat(document.getElementById('eBaseKm').value)||0);
+  const baseCnt=Math.max(0,parseInt(document.getElementById('eBaseCnt').value,10)||0);
+  s.km=baseKm+shoeRunKm(id);          // 누적 = 초기 + 러닝기록 (자동)
+  s.count=baseCnt+shoeRunCount(id);
   s.max=Math.max(50,parseInt(document.getElementById('eMax').value,10)||s.max);
   save(); const ov=$('#ovEdit'); if(ov)ov.remove(); render(); toast('수정했어요');
 }
 
-function resetAll(){ if(confirm('모든 데이터를 초기 샘플로 되돌릴까요?')){ S=structuredClone(DEFAULT); save(); render(); toast('샘플 데이터로 초기화했어요'); } }
+function resetAll(){ if(confirm(L('모든 데이터를 초기 샘플로 되돌릴까요?'))){ const lg=S.lang; S=structuredClone(DEFAULT); S.lang=lg; save(); render(); toast('샘플 데이터로 초기화했어요'); } }
 
 //==================== 시작 ====================
 render();
