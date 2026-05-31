@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>러닝앱 프로토타입</title>
-<link href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" rel="stylesheet"/>
-<script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.9.0/mapbox-gl.css" rel="stylesheet"/>
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.9.0/mapbox-gl.js"></script>
 <style>
   :root{ --brand:#ff5a3c; --brand2:#ff8a3c; --ink:#1a1d23; --sub:#7a818d;
     --bg:#f5f6f8; --card:#fff; --line:#e9ebef; --ok:#16a34a; --warn:#dc2626; }
@@ -116,14 +116,21 @@
 <canvas id="cv" width="600" height="800" style="display:none"></canvas>
 
 <script>
-//==================== 지도 설정 (여기를 직접 수정하세요) ====================
-// 현재: OpenFreeMap 'Liberty' 스타일 (무료 · 상업용 가능 · API 키 불필요).
-// 다른 스타일로 바꾸려면 아래 MAP_STYLE 의 URL만 교체하세요.
-//   · OpenFreeMap: https://tiles.openfreemap.org/styles/{liberty|positron|bright|dark|fiord}
-//   · VersaTiles : https://tiles.versatiles.org/assets/styles/{colorful|shadow|neutrino|graybeard|eclipse}/style.json
-//   · Mapbox/MapTiler 등 키가 필요한 스타일도 style JSON URL이면 사용 가능
-//     (그 경우 키 노출·과금 주의: 대시보드에서 URL 제한 설정, 키는 외부에 공유 금지)
-const MAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
+//==================== 지도 설정 (Mapbox) ====================
+// ▼▼▼ 여기에 본인의 Mapbox 공개 토큰(pk.로 시작)을 붙여넣으세요 ▼▼▼
+const MAPBOX_TOKEN = '여기에_MAPBOX_토큰_붙여넣기';
+// 스타일: 아래 한 줄만 바꾸면 됩니다.
+//   라이트: mapbox://styles/mapbox/light-v11
+//   다크  : mapbox://styles/mapbox/dark-v11
+//   기본  : mapbox://styles/mapbox/streets-v12
+//   아웃도어: mapbox://styles/mapbox/outdoors-v12
+const MAP_STYLE = 'mapbox://styles/mapbox/streets-v12';
+// ⚠ 토큰은 코드에 노출되므로 Mapbox 대시보드에서 'URL 제한(prontfor85.github.io)'과
+//   '사용량 상한'을 꼭 설정하세요. 토큰을 안 넣으면 지도는 자동으로 간단한 대체 그림으로 표시됩니다.
+if(typeof mapboxgl!=='undefined'){
+  if(MAPBOX_TOKEN && !/여기에/.test(MAPBOX_TOKEN)) mapboxgl.accessToken=MAPBOX_TOKEN;
+  else { try{ window.mapboxgl=undefined; }catch(e){} }   // 토큰 미설정 시 대체 그림으로 폴백
+}
 
 //==================== 상태/저장 ====================
 const KEY='runapp_proto_v2';
@@ -350,9 +357,9 @@ function mapSVG(){
 let _runMap=null;
 function setupRunMap(){
   if(_runMap){ try{_runMap.remove();}catch(e){} _runMap=null; }
-  const el=document.getElementById('runmap'); if(!el||typeof maplibregl==='undefined')return;
-  const map=new maplibregl.Map({container:'runmap',style:MAP_STYLE,center:[126.901,37.556],zoom:14,attributionControl:true});
-  map.addControl(new maplibregl.NavigationControl({showCompass:false}),'top-right');
+  const el=document.getElementById('runmap'); if(!el||typeof mapboxgl==='undefined')return;
+  const map=new mapboxgl.Map({container:'runmap',style:MAP_STYLE,center:[126.901,37.556],zoom:14,attributionControl:true});
+  map.addControl(new mapboxgl.NavigationControl({showCompass:false}),'top-right');
   _runMap=map;
   const pill=()=>document.getElementById('gpsPill');
   map.on('load',()=>{ try{map.resize();}catch(e){}
@@ -361,7 +368,7 @@ function setupRunMap(){
         const ll=[p.coords.longitude,p.coords.latitude]; map.flyTo({center:ll,zoom:16});
         const dot=document.createElement('div');
         dot.style.cssText='width:18px;height:18px;border-radius:50%;background:#2f6df6;border:3px solid #fff;box-shadow:0 0 0 5px rgba(47,109,246,.22)';
-        new maplibregl.Marker({element:dot}).setLngLat(ll).addTo(map);
+        new mapboxgl.Marker({element:dot}).setLngLat(ll).addTo(map);
         const q=pill(); if(q){q.style.color='var(--ok)';q.innerHTML='● 현재 위치';}
       },()=>{ const q=pill(); if(q){q.style.color='#b45309';q.innerHTML='⚠ 위치 권한 없음 — 기본 지도';}
       },{enableHighAccuracy:true,timeout:8000});
@@ -411,7 +418,7 @@ function airPillHTML(){ const a=airInfo();
     <span style="width:8px;height:8px;border-radius:50%;background:${a.color};display:inline-block"></span>공기질 ${a.level} · 초미세 ${a.pm}</div>`; }
 function renderRecord(){
   const ov=document.getElementById('ovRecord'); if(!ov)return;
-  const hasMap=(typeof maplibregl!=='undefined');
+  const hasMap=(typeof mapboxgl!=='undefined');
   if(_recView==='full'){
     if(_runMap){try{_runMap.remove();}catch(e){}_runMap=null;}
     ov.innerHTML=`
@@ -709,7 +716,7 @@ function renderHome(){
 
 function renderLog(){
   const runs=[...S.runs].sort((a,b)=>new Date(b.date)-new Date(a.date));
-  const useMap=(typeof maplibregl!=='undefined');
+  const useMap=(typeof mapboxgl!=='undefined');
   if(runs.length===0){ view().innerHTML=`<h1>활동</h1>
     <div class="empty"><div class="ic">🏃</div><div class="t">아직 기록이 없어요</div>
       <div class="d">러닝 탭에서 START를 눌러<br>첫 러닝을 기록해 보세요.</div>
@@ -984,13 +991,13 @@ function svgFromGeo(g){ if(g.length<2)return ''; const xs=g.map(p=>p[0]),ys=g.ma
   const w=(maxx-minx)||1e-6,h=(maxy-miny)||1e-6,sc=Math.min(330/w,660/h),ox=20+(330-w*sc)/2,oy=20+(660-h*sc)/2;
   return 'M'+g.map(p=>`${(ox+(p[0]-minx)*sc).toFixed(1)} ${(oy+(maxy-p[1])*sc).toFixed(1)}`).join(' L'); }
 function setupLiveMap(){
-  if(typeof maplibregl==='undefined')return;
-  try{ _liveMap=new maplibregl.Map({container:'runLiveMap',style:MAP_STYLE,center:RUN.base,zoom:16,interactive:false,attributionControl:false}); }catch(e){ return; }
+  if(typeof mapboxgl==='undefined')return;
+  try{ _liveMap=new mapboxgl.Map({container:'runLiveMap',style:MAP_STYLE,center:RUN.base,zoom:16,interactive:false,attributionControl:false}); }catch(e){ return; }
   _liveMap.on('load',()=>{ try{
     _liveMap.addSource('live',{type:'geojson',data:lineFeature(RUN.geo)});
     _liveMap.addLayer({id:'liveln',type:'line',source:'live',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#ff5a3c','line-width':5}});
     const dot=document.createElement('div'); dot.style.cssText='width:16px;height:16px;border-radius:50%;background:#2f6df6;border:3px solid #fff;box-shadow:0 0 0 5px rgba(47,109,246,.25)';
-    _liveMarker=new maplibregl.Marker({element:dot}).setLngLat(RUN.geo[RUN.geo.length-1]).addTo(_liveMap);
+    _liveMarker=new mapboxgl.Marker({element:dot}).setLngLat(RUN.geo[RUN.geo.length-1]).addTo(_liveMap);
     _liveMap.resize();
   }catch(e){} });
   setTimeout(()=>{try{_liveMap.resize();}catch(e){}},300);
@@ -1033,7 +1040,7 @@ function layoutRun(){
       <button onclick="minimizeRun()" title="홈으로" style="position:absolute;left:16px;top:16px;z-index:600;width:40px;height:40px;border-radius:50%;background:var(--card);color:var(--ink);box-shadow:0 2px 8px rgba(0,0,0,.18);font-size:16px">▾</button>
       <div id="runCard" style="position:absolute;left:0;right:0;bottom:0;z-index:500">${runCardHTML()}</div>`;
     if(_liveMap){try{_liveMap.remove();}catch(e){}_liveMap=null;}
-    if(typeof maplibregl!=='undefined') setTimeout(setupLiveMap,0);
+    if(typeof mapboxgl!=='undefined') setTimeout(setupLiveMap,0);
   } else {
     if(_liveMap){try{_liveMap.remove();}catch(e){}_liveMap=null;}
     const paused=RUN.paused;
@@ -1430,10 +1437,10 @@ function miniRouteSVG(run,size){
 // 실제 지도 위에 경로 그리기 (MapLibre). interactive=false면 썸네일(조작 불가)
 const _routeMaps=[];
 function drawRouteMap(containerId,run,interactive){
-  if(typeof maplibregl==='undefined')return null;
+  if(typeof mapboxgl==='undefined')return null;
   const el=document.getElementById(containerId); if(!el)return null;
   const route=geoRoute(run); let map;
-  try{ map=new maplibregl.Map({container:containerId,style:MAP_STYLE,interactive:!!interactive,attributionControl:!!interactive}); }
+  try{ map=new mapboxgl.Map({container:containerId,style:MAP_STYLE,interactive:!!interactive,attributionControl:!!interactive}); }
   catch(e){ return null; }
   _routeMaps.push(map);
   map.on('load',()=>{ try{
@@ -1443,7 +1450,7 @@ function drawRouteMap(containerId,run,interactive){
     map.fitBounds(routeBounds(route),{padding:interactive?40:10,animate:false,maxZoom:16});
     if(interactive){ const mk=(ll,c)=>{const dd=document.createElement('div');
       dd.style.cssText=`width:15px;height:15px;border-radius:50%;background:${c};border:3px solid #fff;box-shadow:0 0 0 2px rgba(0,0,0,.18)`;
-      new maplibregl.Marker({element:dd}).setLngLat(ll).addTo(map);};
+      new mapboxgl.Marker({element:dd}).setLngLat(ll).addTo(map);};
       mk(route[0],'#16a34a'); mk(route[route.length-1],'#1a1d23'); }
     map.resize();
   }catch(e){} });
@@ -1473,7 +1480,7 @@ function openDetail(runId){
     <div class="topbar"><button class="x" onclick="document.getElementById('ovDetail').remove()">‹</button>
       <b style="flex:1">기록 상세</b>
       <button class="x" onclick="openShare(${r.id})" title="공유">⬆</button></div>
-    ${(typeof maplibregl!=='undefined')?'<div id="detmap" style="flex:none;height:240px;width:100%;border-radius:14px;overflow:hidden;background:#e9eef2"></div>':routeSVG(r)}
+    ${(typeof mapboxgl!=='undefined')?'<div id="detmap" style="flex:none;height:240px;width:100%;border-radius:14px;overflow:hidden;background:#e9eef2"></div>':routeSVG(r)}
     <h1 style="margin:16px 0 2px">${title}</h1>
     <div class="muted">📅 ${dt.getMonth()+1}월 ${dt.getDate()}일 · ${r.at?fmtTime(dt):'오전 8:33'} · 시뮬레이션 경로</div>
     ${r.note?`<div class="card" style="margin-top:12px;font-size:14px;line-height:1.6">${r.note.replace(/</g,'&lt;')}</div>`:''}
@@ -1508,7 +1515,7 @@ function openDetail(runId){
     <button onclick="delRun(${r.id})" style="display:block;margin:14px auto 8px;background:none;color:var(--warn);font-size:13px;font-weight:600">이 기록 삭제</button>`;
   $('#phone').appendChild(ov);
   ov.scrollTop=0;
-  if(typeof maplibregl!=='undefined') setTimeout(()=>drawRouteMap('detmap',r,true),0);
+  if(typeof mapboxgl!=='undefined') setTimeout(()=>drawRouteMap('detmap',r,true),0);
 }
 
 //==================== 신발 추가/관리 ====================
