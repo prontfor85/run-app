@@ -14,7 +14,7 @@
   html,body{margin:0;height:100%;background:#22252b;
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;}
   #phone{position:relative;max-width:430px;margin:0 auto;height:100vh;height:100dvh;
-    background:var(--bg);overflow:hidden;display:flex;flex-direction:column;}
+    background:var(--bg);color:var(--ink);overflow:hidden;display:flex;flex-direction:column;}
   #view{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:18px 18px 90px;}
   #view.maptab{padding:0;overflow:hidden;position:relative;}
   h1{font-size:23px;font-weight:800;letter-spacing:-.4px;margin:6px 0 16px;}
@@ -131,7 +131,7 @@
 <script>
 //==================== 지도 설정 (Mapbox) ====================
 // ▼▼▼ 여기에 본인의 Mapbox 공개 토큰(pk.로 시작)을 붙여넣으세요 ▼▼▼
-const MAPBOX_TOKEN = 'pk.eyJ1IjoicHJvbnRmb3IiLCJhIjoiY21wdHVqemduMGRjMjJ6c2VhYzh4MTcweiJ9.a8FvMgNkl7GOGRKO8PWXAA';
+const MAPBOX_TOKEN = '여기에_MAPBOX_토큰_붙여넣기';
 // 스타일: 아래 한 줄만 바꾸면 됩니다.
 //   라이트: mapbox://styles/mapbox/light-v11
 //   다크  : mapbox://styles/mapbox/dark-v11
@@ -191,11 +191,14 @@ function load(){ let saved=null; try{ saved=JSON.parse(localStorage.getItem(KEY)
   S.privacy=Object.assign({hideEnds:true,visibility:'private'}, S.privacy||{});
   S.profile=Object.assign({nickname:'',height:'',weight:''}, S.profile||{});
   S.runGoal=Object.assign({type:'none',value:0}, S.runGoal||{});
+  S.cadence=Object.assign({on:false,spm:180,pattern:'4'}, S.cadence||{});
+  S.badges=Object.assign({}, S.badges||{});
   if(firstRun) save();   // 첫 실행 결과를 저장해 고정
 }
 function save(){ try{ localStorage.setItem(KEY,JSON.stringify(S)); }catch(e){} }
 load();
 if(!S.lang) S.lang=detectLang();
+checkBadges(true);   // 기존 데이터로 이미 달성한 배지는 조용히 보관(팝업 없이)
 
 //==================== 다국어(i18n) — 한국어 기준, 영어 자동 치환 ====================
 const _LV={'좋음':'Good','보통':'Moderate','나쁨':'Unhealthy','매우나쁨':'Very unhealthy'};
@@ -425,8 +428,26 @@ function setupRunMap(){
 // 기록(측정 시작)은 하단 네비를 덮는 전체화면 모달
 let _recCollapsed=false, _recView='map';
 function recShoeName(){ const ds=shoe(S.defaultShoe); return ds?sName(ds):'신발 선택'; }
+// 측정 화면 케이던스 바 — START 줄 위. 탭하면 설정, 우측 토글로 켜고/끄기.
+const PAT_LABEL={flat:'없음','2':'강약','4':'강약약약'};
+function cadenceBarHTML(){
+  const on=S.cadence.on, patL=PAT_LABEL[S.cadence.pattern||'4'];
+  return `<div onclick="openGoalSheet()" style="display:flex;align-items:center;gap:10px;background:rgba(127,127,127,.1);border-radius:14px;padding:8px 10px;margin-bottom:16px;cursor:pointer">
+    <div style="width:38px;height:38px;border-radius:9px;background:${on?'linear-gradient(135deg,var(--brand),var(--brand2))':'rgba(127,127,127,.3)'};display:flex;align-items:center;justify-content:center;flex:none">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg></div>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:13px;font-weight:700">케이던스 메트로놈</div>
+      <div style="font-size:11px;color:var(--sub)">${on?`${S.cadence.spm} spm · ${patL}`:'꺼짐 · 탭하여 설정'}</div></div>
+    ${switchBtn(on,"event.stopPropagation();toggleCadenceQuick()")}
+  </div>`;
+}
+function refreshRecordControls(){ const rec=document.getElementById('ovRecord'); if(!rec)return;
+  if(_recView==='full') renderRecord(); else { const s=document.getElementById('recSheet'); if(s)s.innerHTML=recSheetHTML(); } }
+function toggleCadenceQuick(){ S.cadence.on=!S.cadence.on; save();
+  if(!S.cadence.on) metro().stop();   // 활성화만 — 소리는 러닝 화면 재생 버튼에서
+  refreshRecordControls(); }
 function recControls(){ const ds=shoe(S.defaultShoe);
-  return `<div style="display:flex;align-items:center;justify-content:center;gap:36px">
+  return `${cadenceBarHTML()}<div style="display:flex;align-items:center;justify-content:center;gap:36px">
     <div style="text-align:center;width:72px" onclick="openShoePicker()">
       <button style="width:54px;height:54px;border-radius:50%;background:var(--bg);box-shadow:0 2px 8px rgba(0,0,0,.12);font-size:22px">👟</button>
       <div style="font-size:10px;color:var(--sub);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ds?sName(ds):'신발 선택'}</div></div>
@@ -488,7 +509,7 @@ function renderRecord(){
         ${hasMap?'<div id="runmap" style="position:absolute;inset:0;z-index:0;background:#e9eef2"></div>':mapSVG()}
         ${airPillHTML()}
         <button onclick="closeRecord()" title="닫기" style="position:absolute;left:16px;top:16px;z-index:600;width:40px;height:40px;border-radius:50%;background:#fff;color:#1a1d23;box-shadow:0 2px 8px rgba(0,0,0,.18);font-size:16px">▾</button>
-        <button onclick="recenterRunMap()" title="현재 위치" style="position:absolute;right:16px;bottom:282px;z-index:550;width:44px;height:44px;border-radius:50%;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.18);display:flex;align-items:center;justify-content:center">
+        <button onclick="recenterRunMap()" title="현재 위치" style="position:absolute;right:16px;bottom:356px;z-index:550;width:44px;height:44px;border-radius:50%;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.18);display:flex;align-items:center;justify-content:center">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a1d23" stroke-width="2"><circle cx="12" cy="12" r="7"/><line x1="12" y1="1" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="23"/><line x1="1" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="23" y2="12"/><circle cx="12" cy="12" r="2.5" fill="#1a1d23"/></svg></button>
         <div id="recSheet" class="recsheet" style="position:absolute;left:0;right:0;bottom:0;z-index:500">${recSheetHTML()}</div>
       </div>`;
@@ -513,8 +534,10 @@ function openRecord(){
 }
 function setRecView(v){ _recView=v; renderRecord(); }
 function toggleRecSheet(){ _recCollapsed=!_recCollapsed; const s=document.getElementById('recSheet'); if(s)s.innerHTML=recSheetHTML(); }
-function closeRecord(){ const ov=document.getElementById('ovRecord'); if(ov)ov.remove(); if(_runMap){try{_runMap.remove();}catch(e){}_runMap=null;} _planWorkout=null; _planMark=null; }
-function startFromRecord(){ closeRecord(); startRun(); }
+function closeRecord(){ const ov=document.getElementById('ovRecord'); if(ov)ov.remove(); if(_runMap){try{_runMap.remove();}catch(e){}_runMap=null;} _planWorkout=null; _planMark=null; if(!RUN) metro().stop(); }
+function startFromRecord(){
+  if(S.cadence&&S.cadence.on){ try{ const m=metro(); if(!m.ctx)m.ctx=new (window.AudioContext||window.webkitAudioContext)(); m.ctx.resume(); }catch(e){} }  // START 탭(사용자 동작)에서 오디오 미리 깨우기
+  closeRecord(); startRun(); }
 
 function statBuckets(period){
   const today=new Date('2026-05-30'), runs=S.runs, b=[];
@@ -605,10 +628,14 @@ function renderPlanBody(){ const el=$('#planBody'); if(!el)return;
   if(_planWeek==null)_planWeek=planCurWeek(p);
   const st=planStats(p);
   const wsel=p.weeks.map((_,i)=>`<button class="chip ${i===_planWeek?'on':''}" onclick="setPlanWeek(${i})">${i+1}주차</button>`).join('');
-  const rows=p.weeks[_planWeek].map((d,di)=>{ const ok=!!S.plan.done[_planWeek+'-'+di];
+  const rows=p.weeks[_planWeek].map((d,di)=>{ const st=S.plan.done[_planWeek+'-'+di], ok=!!st, manual=st==='manual';
+    const circle = manual
+      ? `border:2px dashed var(--ok);background:transparent;color:var(--ok)`      // 직접 표시 = 점선 초록 ✓
+      : (ok ? `border:2px solid var(--ok);background:var(--ok);color:#fff`         // 실제 측정 = 꽉 찬 초록 ✓
+            : `border:2px solid var(--line);background:transparent;color:#fff`);
     return `<div class="card" style="display:flex;align-items:center;gap:12px">
-      <div onclick="toggleWorkout(${_planWeek},${di})" style="width:26px;height:26px;border-radius:50%;border:2px solid ${ok?'var(--ok)':'var(--line)'};background:${ok?'var(--ok)':'transparent'};color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex:none;cursor:pointer">${ok?'✓':''}</div>
-      <div style="flex:1;min-width:0"><div style="font-size:11px;color:var(--brand);font-weight:700">${d.t}</div><div style="font-weight:600">${d.d}</div></div>
+      <div onclick="toggleWorkout(${_planWeek},${di})" style="width:26px;height:26px;border-radius:50%;${circle};display:flex;align-items:center;justify-content:center;font-size:13px;flex:none;cursor:pointer">${ok?'✓':''}</div>
+      <div style="flex:1;min-width:0"><div style="font-size:11px;color:var(--brand);font-weight:700">${d.t}${manual?' <span style="color:var(--sub);font-weight:500">· 직접 표시</span>':''}</div><div style="font-weight:600">${d.d}</div></div>
       <button onclick="startPlanRun(${_planWeek},${di})" title="측정 시작" style="background:var(--brand);color:#fff;width:34px;height:34px;border-radius:50%;flex:none;font-size:15px">▶</button></div>`;}).join('');
   const NEXT={beginner:'5k','5k':'10k'}, nx=NEXT[p.id];
   const doneCard = (st.total>0&&st.done>=st.total) ? `<div class="card" style="border:2px solid var(--brand);text-align:center">
@@ -640,11 +667,11 @@ function ivBannerUpdate(){ const b=document.getElementById('ivBanner'); if(!b||!
   const setTxt=RUN.iv.reps>1?` · ${S.lang==='en'?'set':'세트'} ${setNo}/${RUN.iv.reps}`:'';
   b.textContent=`${lbl} · ${fmtDur(rem)}${setTxt}`; }
 function checkPlanComplete(){ if(!S.plan)return; const p=PLANS.find(x=>x.id===S.plan.id); if(!p)return; const st=planStats(p);
-  if(st.total>0&&st.done>=st.total){ S.plansDone=S.plansDone||[]; if(!S.plansDone.includes(p.id)){ S.plansDone.push(p.id); save(); toast('플랜 완주! 🎉'); } } }
+  if(st.total>0&&st.done>=st.total){ S.plansDone=S.plansDone||[]; if(!S.plansDone.includes(p.id)){ S.plansDone.push(p.id); save(); toast('플랜 완주! 🎉'); checkBadges(); } } }
 function startPlan(id){ S.plan={id,start:todayStr(),done:{}}; _planWeek=0; save(); renderPlanBody(); render(); toast('플랜을 시작했어요'); }
 function quitPlan(){ if(!confirm(L('플랜을 그만둘까요? (진행 상황이 사라져요)')))return; S.plan=null; _planWeek=null; save(); renderPlanBody(); render(); toast('플랜을 종료했어요'); }
 function setPlanWeek(i){ _planWeek=i; renderPlanBody(); }
-function toggleWorkout(wi,di){ const k=wi+'-'+di; S.plan.done[k]=!S.plan.done[k]; save(); checkPlanComplete(); renderPlanBody(); }
+function toggleWorkout(wi,di){ const k=wi+'-'+di; S.plan.done[k]=S.plan.done[k]?null:'manual'; save(); checkPlanComplete(); renderPlanBody(); }
 function startPlanRun(wi,di){ const p=PLANS.find(x=>x.id===S.plan.id);
   _planWorkout=p?parseWorkout(p.weeks[wi][di].d):null; _planMark={wi,di};
   const ov=$('#ovPlans'); if(ov)ov.remove(); openRecord(); }
@@ -687,14 +714,29 @@ function saveGoals(){
   S.goal=w; S.monthGoal=m; S.weekRunGoal=r; save();
   const ov=document.getElementById('ovGoals'); if(ov)ov.remove(); render(); toast('목표를 저장했어요');
 }
-function badges(){ const runs=S.runs,total=runs.reduce((a,r)=>a+r.dist,0);
+function badgeDefs(){ const runs=S.runs,total=runs.reduce((a,r)=>a+r.dist,0);
   const night=runs.some(r=>{ if(!r.at)return false; const h=new Date(r.at).getHours(); return h>=20||h<5; });
-  return [{ic:'🎽',label:'첫 러닝',ok:runs.length>=1},{ic:'5️⃣',label:'5K 완주',ok:runs.some(r=>r.dist>=5)},
-    {ic:'🔟',label:'10K 완주',ok:runs.some(r=>r.dist>=10)},{ic:'🔥',label:'주 3회',ok:weekCount()>=3},
-    {ic:'🏅',label:'누적 50km',ok:total>=50},{ic:'💯',label:'누적 100km',ok:total>=100},
-    {ic:'🚀',label:'누적 200km',ok:total>=200},{ic:'📅',label:'월 100km',ok:monthKm()>=100},
-    {ic:'⚡',label:'4주 연속',ok:streakWeeks()>=4},{ic:'🌙',label:'야간 러닝',ok:night},
-    {ic:'🏁',label:'플랜 완주',ok:(S.plansDone||[]).length>0}]; }
+  return [{id:'first',ic:'🎽',label:'첫 러닝',cond:runs.length>=1},{id:'5k',ic:'5️⃣',label:'5K 완주',cond:runs.some(r=>r.dist>=5)},
+    {id:'10k',ic:'🔟',label:'10K 완주',cond:runs.some(r=>r.dist>=10)},{id:'wk3',ic:'🔥',label:'주 3회',cond:weekCount()>=3},
+    {id:'t50',ic:'🏅',label:'누적 50km',cond:total>=50},{id:'t100',ic:'💯',label:'누적 100km',cond:total>=100},
+    {id:'t200',ic:'🚀',label:'누적 200km',cond:total>=200},{id:'m100',ic:'📅',label:'월 100km',cond:monthKm()>=100},
+    {id:'streak4',ic:'⚡',label:'4주 연속',cond:streakWeeks()>=4},{id:'night',ic:'🌙',label:'야간 러닝',cond:night},
+    {id:'plan',ic:'🏁',label:'플랜 완주',cond:(S.plansDone||[]).length>0}]; }
+// 한번 달성하면 영구 보관(S.badges에 시각 기록). 새로 달성 시 팝업.
+function badges(){ return badgeDefs().map(b=>({ic:b.ic,label:b.label,ok:!!(S.badges&&S.badges[b.id])})); }
+function checkBadges(silent){ S.badges=S.badges||{}; const newly=[];
+  badgeDefs().forEach(b=>{ if(b.cond && !S.badges[b.id]){ S.badges[b.id]=Date.now(); newly.push(b); } });
+  if(newly.length){ save(); if(!silent) setTimeout(()=>showBadgeEarned(newly),700); } }
+function showBadgeEarned(list){ const ov=document.createElement('div'); ov.className='overlay'; ov.id='ovBadge';
+  ov.style.background='rgba(0,0,0,0.5)'; ov.style.justifyContent='center'; ov.style.padding='24px';
+  ov.onclick=(e)=>{ if(e.target===ov)ov.remove(); };
+  ov.innerHTML=`<div style="background:var(--card);border-radius:20px;padding:26px 22px;width:100%;max-width:320px;margin:auto;text-align:center">
+    <div style="font-size:40px">🎉</div>
+    <div style="font-weight:800;font-size:18px;margin:8px 0 18px">${list.length>1?`배지 ${list.length}개 획득!`:'배지 획득!'}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:16px;justify-content:center;margin-bottom:20px">
+      ${list.map(b=>`<div style="width:78px"><div style="font-size:38px">${b.ic}</div><div style="font-size:12px;margin-top:6px;font-weight:600">${b.label}</div></div>`).join('')}</div>
+    <button class="btn" onclick="document.getElementById('ovBadge').remove()">좋아요!</button></div>`;
+  $('#phone').appendChild(ov); }
 function setStat(p){ S.statPeriod=p; save(); render(); }
 function renderHome(){
   const wk=weekKm(), wc=weekCount(), ds=shoe(S.defaultShoe);
@@ -747,7 +789,9 @@ function renderHome(){
       <div class="muted" style="margin-top:6px${shoeNear?';color:var(--warn);font-weight:700':''}">${shoeNear?`⚠ 교체 시점 (${shoeMax}km 권장)`:`${shoeRem.toFixed(0)}km 후 교체 권장`}</div></div>`:''}
     ${S.plan&&PLANS.find(x=>x.id===S.plan.id)?(()=>{const p=PLANS.find(x=>x.id===S.plan.id),st=planStats(p);
       return `<div class="card" onclick="openPlans()"><div class="row"><b>훈련 플랜</b><span class="muted">${p.name} · ${st.done}/${st.total} ›</span></div>
-        <div class="bar" style="margin-top:10px"><i style="width:${st.pct}%;background:var(--ok)"></i></div></div>`;})():''}
+        <div class="bar" style="margin-top:10px"><i style="width:${st.pct}%;background:var(--ok)"></i></div></div>`;})()
+      :`<div class="card" onclick="openPlans()"><div class="row"><b>훈련 플랜 시작하기</b><span class="brand" style="font-weight:700;font-size:18px">›</span></div>
+        <div class="muted" style="margin-top:4px">초보 8주 · 5K · 10K 프로그램</div></div>`}
     <div class="card"><div style="font-weight:700;margin-bottom:12px">획득한 배지</div>
       <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between">
         ${badges().map(b=>`<div style="text-align:center;width:62px;opacity:${b.ok?1:.32}">
@@ -821,6 +865,14 @@ function renderLog(){
       <div><div style="font-size:20px;font-weight:800">${fmtDur(d.dur)}</div><div class="muted" style="font-size:12px">시간</div></div>
     </div>
     <div class="card" style="padding:14px 12px">${logChart(d.bars)}</div>
+    ${(()=>{ const rs=[...S.runs].sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(-8);
+      if(rs.length<2) return '';
+      const paceSeries=rs.map(r=>r.dur/r.dist), hrSeries=rs.map(r=>r.hr||0);
+      return `<div class="card"><div style="font-weight:700;margin-bottom:10px">추세 <span class="muted" style="font-size:11px;font-weight:400">최근 ${rs.length}회</span></div>
+        <div style="display:flex;gap:14px">
+          <div style="flex:1"><div class="muted" style="font-size:11px;margin-bottom:2px">페이스 추세 <span style="font-size:10px">(낮을수록 빠름)</span></div>${miniLine(paceSeries,'#2f6df6')}</div>
+          <div style="flex:1"><div class="muted" style="font-size:11px;margin-bottom:2px">심박 추세</div>${miniLine(hrSeries,'#e0245e')}</div>
+        </div></div>`; })()}
     <div class="row" style="margin:22px 4px 8px"><b style="font-size:17px">최근 활동</b></div>`;
   if(runs.length===0){ view().innerHTML=head+`<div class="empty" style="padding:24px 0"><div class="ic">🏃</div>
     <div class="t">아직 기록이 없어요</div><div class="d">위 ＋ 버튼이나 러닝 탭에서<br>첫 러닝을 기록해 보세요.</div></div>`; return; }
@@ -946,7 +998,6 @@ function renderShareModal(){
           ${shareBtn('📋','클립보드','shareClipboard()')}
           ${shareBtn('⤴︎','더보기','shareSystem()')}
         </div>
-        <div class="note" style="margin:0 16px 12px">인스타 직접 게시는 출시(네이티브) 빌드에서 연결돼요. 지금은 '저장' 후 인스타 스토리에 올리거나 '더보기'로 공유하세요.</div>
       </div>
     </div>`;
   vis.forEach(({t,i})=>{ svgToPng(fillTemplate(t.svg,r),(durl)=>{ const im=document.getElementById('simg_'+i); if(im&&durl)im.src=durl; }); });
@@ -1189,12 +1240,24 @@ function openGoalSheet(){
     <input type="text" value="${paceFromSec(g.value||330).replace(/['\"]/g,m=>m==="'"?':':'')}" placeholder="5:30" onchange="S.runGoal.value=parsePace(this.value);save()" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;font-size:15px">`;
   const ov=document.createElement('div'); ov.className='overlay'; ov.id='ovGoal'; ov.style.padding='0';
   ov.innerHTML=`<div style="background:var(--card);border-radius:20px 20px 0 0;padding:18px 16px 24px;margin-top:auto">
-    <div class="row" style="margin-bottom:14px"><b>러닝 설정</b><button class="x" onclick="document.getElementById('ovGoal').remove()">✕</button></div>
+    <div class="row" style="margin-bottom:14px"><b>러닝 설정</b><button class="x" onclick="closeGoalSheet()">✕</button></div>
     <div class="muted" style="font-size:12px;margin-bottom:6px">목표</div>
     <div class="seg">${seg('none','없음')}${seg('distance','거리')}${seg('time','시간')}${seg('pace','페이스')}</div>
     ${valHtml}
     <div class="card" style="margin-top:16px"><div class="row"><span style="flex:1">자동 일시정지 <span class="muted" style="font-size:11px">(멈추면 자동 정지)</span></span>${switchBtn(S.autopause,'toggleAutopause()')}</div></div>
     <div class="card"><div class="row"><span style="flex:1">음성 코칭 <span class="muted" style="font-size:11px">(1km마다 음성 안내)</span></span>${switchBtn(S.voiceCoach,'toggleVoice()')}</div></div>
+    <div class="card"><div class="row"><span style="flex:1">케이던스 메트로놈 <span class="muted" style="font-size:11px">(목표 박자에 발 맞추기)</span></span>${switchBtn(S.cadence.on,'toggleCadence()')}</div>
+      ${S.cadence.on?`<div style="margin-top:14px">
+        <div class="row" style="margin-bottom:6px"><span class="muted" style="font-size:12px">목표 케이던스</span><b style="font-size:16px"><span id="cadVal">${S.cadence.spm}</span> <span class="muted" style="font-size:11px">spm</span></b></div>
+        <input type="range" min="150" max="200" step="1" value="${S.cadence.spm}" oninput="setCadenceSpm(+this.value)" style="width:100%;accent-color:var(--brand)">
+        <div class="muted" style="font-size:12px;margin:14px 0 6px">리듬 (강세)</div>
+        <div class="seg">
+          <button class="${(S.cadence.pattern||'4')==='flat'?'on':''}" onclick="setCadencePattern('flat')">없음</button>
+          <button class="${(S.cadence.pattern||'4')==='2'?'on':''}" onclick="setCadencePattern('2')">강약</button>
+          <button class="${(S.cadence.pattern||'4')==='4'?'on':''}" onclick="setCadencePattern('4')">강약약약</button>
+        </div>
+        <div class="muted" style="font-size:11px;margin-top:8px">보통 170~180 spm 권장(절대 기준 아님). 강세는 높은 음으로 들려요. <b>실제 박자음은 러닝 화면의 재생 버튼으로 켜요.</b></div></div>`:''}
+    </div>
     <button class="btn" style="margin-top:6px" onclick="applyGoal()">적용</button></div>`;
   $('#phone').appendChild(ov);
 }
@@ -1207,7 +1270,31 @@ function parsePace(str){ const m=String(str).split(/[:'\"]/).map(x=>parseInt(x,1
 function toggleAutopause(){ S.autopause=!S.autopause; save(); openGoalSheet(); }
 function toggleVoice(){ S.voiceCoach=!S.voiceCoach; save(); openGoalSheet();
   if(S.voiceCoach) speak(S.lang==='en'?'Voice coaching on.':'음성 코칭을 켰어요.'); }
-function applyGoal(){ const ov=$('#ovGoal'); if(ov)ov.remove(); render(); toast(S.runGoal.type==='none'?'목표 해제':goalLabel(S.runGoal)+' 설정'); }
+// 케이던스 메트로놈 — Web Audio 박자음(프로토타입: 화면 켜진 동안 동작 / 백그라운드는 출시 빌드)
+let _metro=null;
+function metro(){ if(_metro)return _metro;
+  _metro={ctx:null,timer:null,spm:180,beat:0,
+    _click(){ const c=this.ctx; if(!c)return;
+      const pat=(S.cadence&&S.cadence.pattern)||'flat'; const per=pat==='2'?2:(pat==='4'?4:1);
+      const strong=(this.beat%per)===0;
+      const o=c.createOscillator(),g=c.createGain(); o.type='square';
+      o.frequency.value = per>1 ? (strong?2700:1500) : 2000;       // 강=높은음 / 약=낮은음
+      o.connect(g); g.connect(c.destination);
+      const t=c.currentTime, peak = (per>1&&!strong)?0.26:0.5;      // 강=크게 / 약=작게
+      g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(peak,t+0.002); g.gain.exponentialRampToValueAtTime(0.0001,t+0.05);
+      o.start(t); o.stop(t+0.06);
+      this.beat = per>1 ? (this.beat+1)%per : 0; },
+    start(spm){ this.stop(); try{ if(!this.ctx)this.ctx=new (window.AudioContext||window.webkitAudioContext)(); if(this.ctx.state==='suspended')this.ctx.resume(); }catch(e){return;}
+      this.spm=spm||this.spm||180; this.beat=0; this._click(); this.timer=setInterval(()=>this._click(),60000/this.spm); },
+    setSpm(spm){ this.spm=spm; if(this.timer){ clearInterval(this.timer); this.timer=setInterval(()=>this._click(),60000/this.spm); } },
+    stop(){ if(this.timer){clearInterval(this.timer);this.timer=null;} } };
+  return _metro; }
+function toggleCadence(){ S.cadence.on=!S.cadence.on; save(); if(!S.cadence.on) metro().stop(); openGoalSheet(); }
+function setCadenceSpm(v){ S.cadence.spm=Math.max(150,Math.min(200,+v||180)); save();
+  const el=document.getElementById('cadVal'); if(el)el.textContent=S.cadence.spm; metro().setSpm(S.cadence.spm); }
+function setCadencePattern(p){ S.cadence.pattern=p; save(); if(_metro)_metro.beat=0; openGoalSheet(); }
+function closeGoalSheet(){ const ov=document.getElementById('ovGoal'); if(ov)ov.remove(); if(!RUN) metro().stop(); }
+function applyGoal(){ const ov=$('#ovGoal'); if(ov)ov.remove(); if(!RUN) metro().stop(); render(); toast(S.runGoal.type==='none'?'목표 해제':goalLabel(S.runGoal)+' 설정'); }
 function lineFeature(coords){return {type:'Feature',geometry:{type:'LineString',coordinates:coords}};}
 function svgFromGeo(g){ if(g.length<2)return ''; const xs=g.map(p=>p[0]),ys=g.map(p=>p[1]);
   const minx=Math.min(...xs),maxx=Math.max(...xs),miny=Math.min(...ys),maxy=Math.max(...ys);
@@ -1255,7 +1342,28 @@ function runCardHTML(){ const paused=RUN.paused;
       <div style="flex:1;text-align:center"><div id="rPace" style="font-size:20px;font-weight:800">${pace(RUN.dist,RUN.elapsed)}</div><div class="muted">페이스</div></div>
       <div style="flex:1;text-align:center"><div id="rHr" style="font-size:20px;font-weight:800;color:#e0245e">${Math.round(RUN.hr)}</div><div class="muted">심박</div></div>
     </div>
+    ${runAudioBar()}
     <div style="display:flex;gap:12px;padding:8px 16px 22px">${runCtrls2()}</div></div>`; }
+// 달리는 중 케이던스 바 — 설정에서 켰을 때만 표시. 재생/정지 버튼으로 실제 소리 제어.
+function runAudioBar(){
+  if(!S.cadence.on) return '';
+  const beating=!!(_metro&&_metro.timer);
+  const icon = beating
+    ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M7 5h3.2v14H7zM13.8 5H17v14h-3.2z"/></svg>`
+    : `<svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg>`;
+  return `<div style="padding:0 16px 10px">
+    <div style="display:flex;align-items:center;gap:10px;background:${beating?'rgba(255,90,60,.12)':'rgba(127,127,127,.1)'};border-radius:14px;padding:9px 9px 9px 14px">
+      <span style="font-size:16px;color:${beating?'var(--brand)':'var(--ink)'}">♪</span>
+      <div style="flex:1;min-width:0;font-size:13px;font-weight:700;color:${beating?'var(--brand)':'var(--ink)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">케이던스 ${S.cadence.spm} spm · ${PAT_LABEL[S.cadence.pattern||'4']}</div>
+      <button onclick="toggleRunCadence()" aria-label="${beating?'정지':'재생'}" title="${beating?'정지':'재생'}" style="width:42px;height:42px;border-radius:50%;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;flex:none;border:none">${icon}</button>
+    </div>
+  </div>`;
+}
+function toggleRunCadence(){
+  if(_metro&&_metro.timer){ metro().stop(); }
+  else { try{ if(!metro().ctx)metro().ctx=new (window.AudioContext||window.webkitAudioContext)(); metro().ctx.resume(); }catch(e){} metro().start(S.cadence.spm); }
+  if(RUN){ if(RUN.view==='map'){ const c=document.getElementById('runCard'); if(c)c.innerHTML=runCardHTML(); } else layoutRun(); }
+}
 function layoutRun(){
   const ov=document.getElementById('ovRun'); if(!ov)return;
   if(RUN.view==='map'){
@@ -1284,6 +1392,7 @@ function layoutRun(){
             <div style="text-align:center"><div id="rHr" style="font-size:30px;font-weight:800;color:#e0245e">${Math.round(RUN.hr)}</div><div class="muted">심박 ❤</div></div>
           </div>
         </div>
+        ${runAudioBar()}
         <div style="display:flex;gap:12px;padding:0 18px 34px">${runCtrls2()}</div>
       </div>`;
   }
@@ -1316,7 +1425,7 @@ function togglePause(){ RUN.paused=!RUN.paused;
     if(RUN.paused&&_liveMap){try{_liveMap.setCenter(RUN.geo[RUN.geo.length-1]);}catch(e){}} }
   else { layoutRun(); } }
 function stopRun(){
-  clearInterval(timer); timer=null; ivBannerHide();
+  clearInterval(timer); timer=null; ivBannerHide(); metro().stop();
   const now=new Date();
   const r={id:Date.now(),date:todayStr(now),at:now.getTime(),dist:+RUN.dist.toFixed(2),dur:RUN.elapsed,
     hr:Math.round(RUN.hr),cal:Math.round(RUN.cal),shoeId:S.defaultShoe,geo:RUN.geo.slice(),laps:RUN.laps.slice()};
@@ -1384,7 +1493,8 @@ function commitRun(r){
     const sh=shoe(r.shoeId); if(sh){ sh.km+=r.dist; sh.count+=1; } save();
     const after=levelIdx(totalKm());
     if(after>before){ const nm=LEVELS[after][1]; setTimeout(()=>toast('레벨 업! '+nm+' 달성 🎉'),900); }
-    if(_planMark&&S.plan){ S.plan.done[_planMark.wi+'-'+_planMark.di]=true; save(); checkPlanComplete(); } _planMark=null;
+    if(_planMark&&S.plan){ S.plan.done[_planMark.wi+'-'+_planMark.di]='run'; save(); checkPlanComplete(); } _planMark=null;
+    checkBadges();
   }
 }
 function closeSum(){ if(confirm(L('이 기록을 저장하지 않고 닫을까요?'))) $('#ovSum').remove(); }
